@@ -1,0 +1,4 @@
+# 核心运行依赖（最小且有效，均有测试保证：可导入、被使用）
+# 其余全部使用 Python 标准库：sqlite3/json/wave/struct/zlib/threading/asyncio/uuid/hashlib/socket/shutil/subprocess
+fastapi>=0.110
+uvicorn>=0.29

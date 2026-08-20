@@ -1,0 +1,27 @@
+# 可选模型栈（完全离线）：按能力分组安装，不装则自动使用内置 mock 后端
+# 安装示例：pip install -r requirements-models.txt
+# 模型下载：python scripts/download_models.py --capability all --local-dir ./models
+
+# ---- LLM（剧本/世界观/分镜）transformers_qwen 后端 ----
+# 模型：Qwen/Qwen2.5-0.5B-Instruct(CPU) / Qwen2.5-1.5B / Qwen2.5-7B / Qwen3-0.6B / Qwen3-1.7B
+torch>=2.2
+transformers>=4.44
+accelerate>=0.30
+
+# ---- 文生图（关键帧）diffusers 后端 ----
+# 模型：AI-ModelScope/stable-diffusion-v1-5 / stabilityai/stable-diffusion-xl-base-1.0
+#       AI-ModelScope/FLUX.1-schnell / Qwen/Qwen-Image-2512
+diffusers>=0.30
+
+# ---- ModelScope 离线下载（scripts/download_models.py 需要）----
+modelscope>=1.18
+
+# ---- ASR（字幕校对）funasr 后端 ----
+# 模型：iic/SenseVoiceSmall(CPU 友好) / iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch
+funasr>=1.1
+
+# ---- TTS（配音）可选后端，二选一 ----
+# mosaic（本项目参考框架，四后端路由：ChatTTS/Fish/GPT-SoVITS/CosyVoice）：
+#   pip install -e /path/to/mosaic
+# CosyVoice2：模型 iic/CosyVoice2-0.5B（需另下 iic/CosyVoice-ttsfrd）
+#   pip install -e /path/to/CosyVoice

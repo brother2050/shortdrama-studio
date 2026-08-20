@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShortDrama Studio · 对话式连续短剧生成</title>
+  <link rel="icon" href="/favicon.ico" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+        <path fill="currentColor" d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm1 2v7.2l3.6-3.6 3 3L16 9l3 3V7H5zm3 4.8L5 14.8V17h14v-2.6l-3-3-6.4 6.4-1.6-1.6-1.9 1.9-1.4-1.4L8 11.8zM8.5 8a1.2 1.2 0 1 0 0 2.4A1.2 1.2 0 0 0 8.5 8z"/>
+      </svg>
+      <div class="brand-text">
+        <strong>ShortDrama Studio</strong>
+        <span id="version" class="muted"></span>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button data-view="chat" class="tab active">对话</button>
+      <button data-view="projects" class="tab">项目</button>
+      <button data-view="episode" class="tab">分集详情</button>
+      <button data-view="tasks" class="tab">任务中心</button>
+      <button data-view="settings" class="tab">设置</button>
+      <button data-view="system" class="tab">系统</button>
+    </nav>
+    <div class="project-switch">
+      <label for="projectSelect" class="muted small">当前项目</label>
+      <select id="projectSelect" title="切换当前项目（对话与生成都会作用于它）"></select>
+    </div>
+  </header>
+
+  <main id="view" class="view"></main>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script type="module" src="/static/js/main.js"></script>
+</body>
+</html>

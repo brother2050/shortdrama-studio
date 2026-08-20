@@ -1,0 +1,11 @@
+# 插件目录：放入本目录的 Python 文件会被自动扫描并导入（导入即注册）。
+# 模板：
+#
+#   from app.adapters.base import AdapterBase, AdapterSpec, register_adapter
+#
+#   @register_adapter
+#   class MyTTS(AdapterBase):
+#       spec = AdapterSpec(name="my_tts", capability="tts",
+#                          display_name="我的TTS", priority=8, requires=[])
+#       def run(self, ctx, params=None, progress=None):
+#           ...
