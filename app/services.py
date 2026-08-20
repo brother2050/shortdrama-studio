@@ -16,6 +16,7 @@ from app.pipeline import (STAGES, PipelineError, episode_stage_statuses,
                           make_stage_fn, start_pipeline, sync_episode_status)
 from app.store import get_store
 from app.tasks import TaskManager, get_task_manager
+from app.vram import vram_summary
 
 logger = logging.getLogger("app.services")
 
@@ -228,5 +229,6 @@ def system_health() -> dict:
         "disk_free_gb": free_gb,
         "tasks": tm.status_summary(),
         "counts": {"projects": len(store.list_projects())},
+        "vram": vram_summary(),
         "capabilities": caps,
     }

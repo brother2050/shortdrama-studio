@@ -45,6 +45,8 @@ export const api = {
   /* 系统 */
   health: () => request("GET", "/api/system/health"),
   backends: () => request("GET", "/api/system/backends"),
+  vramStatus: () => request("GET", "/api/system/vram"),
+  releaseVRAM: () => request("POST", "/api/system/vram/release"),
   settings: () => request("GET", "/api/settings"),
   saveSettings: (settings) => request("PUT", "/api/settings", { settings }),
 };

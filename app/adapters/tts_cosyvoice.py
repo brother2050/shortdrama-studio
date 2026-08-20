@@ -18,6 +18,7 @@ from typing import Any
 
 from app.adapters.base import (AdapterBase, AdapterError, AdapterSpec,
                                register_adapter)
+from app.vram import ModelSlot, pick_device, unload_model, check_vram
 from app.adapters.tts_mock import write_wav
 
 VOICE_MAP = {
@@ -45,7 +46,7 @@ class CosyVoiceTTS(AdapterBase):
         vram_gb=2.0, license="Apache-2.0（CosyVoice2）",
     )
 
-    _model = None
+    _slot = ModelSlot("tts_cosyvoice")
 
     def _load(self):
         model_dir = str(self.params.get("model_dir") or "").strip()
@@ -53,15 +54,31 @@ class CosyVoiceTTS(AdapterBase):
             raise AdapterError(
                 "cosyvoice 需要设置参数 model_dir（本地模型目录）。"
                 "离线下载：python scripts/download_models.py --capability tts --local-dir ./models")
-        if self._model is not None:
-            return self._model
-        import torch
-        from cosyvoice.cli.cosyvoice import CosyVoice2
-        device = self.params.get("device", "auto")
-        if device == "auto":
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-        self._model = CosyVoice2(model_dir, load_jit=False, load_trt=False)
-        return self._model
+        if self._slot.is_loaded:
+            return self._slot.model
+        if not check_vram(self.spec.vram_gb):
+            raise AdapterError(f"显存不足：需要约 {self.spec.vram_gb}GB，当前可用不足。"
+                               f"请先在系统页查看显存状态，或切换到不需要 GPU 的后端。")
+
+        def _do_load():
+            import torch
+            from cosyvoice.cli.cosyvoice import CosyVoice2
+            # device 仅用于决策（与原实现一致：不直接传给 CosyVoice2）
+            device = pick_device(self.params.get("device", "auto"), self.spec.vram_gb)
+            try:
+                model = CosyVoice2(model_dir, load_jit=False, load_trt=False)
+            except (torch.cuda.OutOfMemoryError, RuntimeError) as exc:
+                if "out of memory" in str(exc).lower():
+                    # OOM 恢复：重试（CosyVoice2 内部按可用资源调度）
+                    model = CosyVoice2(model_dir, load_jit=False, load_trt=False)
+                else:
+                    raise
+            return model
+
+        return self._slot.load(_do_load)
+
+    def unload(self) -> None:
+        self._slot.unload()
 
     def run(self, ctx: dict[str, Any], progress=None) -> dict[str, Any]:
         text = str(ctx.get("text", "")).strip()

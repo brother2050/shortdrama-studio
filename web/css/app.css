@@ -160,3 +160,12 @@ textarea.json { font-family: ui-monospace, monospace; font-size: 12px; min-heigh
 .toast.err { border-color: var(--err); }
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 6px; }
+
+/* 禁用选项 */
+select option[disabled] { color: var(--muted); opacity: 0.6; }
+
+/* 设置页参数文档 */
+.mono div { margin: 2px 0; }
+
+/* VRAM 徽章 */
+.badge[style*="margin-top"] { font-size: 11px; }

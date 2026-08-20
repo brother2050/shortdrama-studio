@@ -13,6 +13,7 @@ from typing import Any
 
 from app.adapters.base import (AdapterBase, AdapterError, AdapterSpec,
                                register_adapter)
+from app.vram import ModelSlot, pick_device, unload_model, check_vram
 
 
 @register_adapter
@@ -37,7 +38,7 @@ class TransformersQwenLLM(AdapterBase):
         vram_gb=2.0, license="Apache-2.0（Qwen 系列模型）",
     )
 
-    _model_cache: dict[str, Any] = {}
+    _slot = ModelSlot("llm_transformers")
 
     def _load(self):
         path = str(self.params.get("model_path") or "").strip()
@@ -45,19 +46,36 @@ class TransformersQwenLLM(AdapterBase):
             raise AdapterError(
                 "transformers_qwen 需要设置参数 model_path（本地模型目录）。"
                 "离线下载：python scripts/download_models.py --capability llm --local-dir ./models")
-        if path in self._model_cache:
-            return self._model_cache[path]
-        import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
-        device = self.params.get("device", "auto")
-        if device == "auto":
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-        tok = AutoTokenizer.from_pretrained(path, trust_remote_code=True)
-        model = AutoModelForCausalLM.from_pretrained(
-            path, torch_dtype="auto", trust_remote_code=True,
-        ).to(device).eval()
-        self._model_cache[path] = (tok, model, device)
-        return self._model_cache[path]
+        if self._slot.is_loaded:
+            return self._slot.model
+        if not check_vram(self.spec.vram_gb):
+            raise AdapterError(f"显存不足：需要约 {self.spec.vram_gb}GB，当前可用不足。"
+                               f"请先在系统页查看显存状态，或切换到不需要 GPU 的后端。")
+
+        def _do_load():
+            import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+            device = pick_device(self.params.get("device", "auto"), self.spec.vram_gb)
+            tok = AutoTokenizer.from_pretrained(path, trust_remote_code=True)
+            try:
+                model = AutoModelForCausalLM.from_pretrained(
+                    path, torch_dtype="auto", trust_remote_code=True,
+                ).to(device).eval()
+            except (torch.cuda.OutOfMemoryError, RuntimeError) as exc:
+                if "out of memory" in str(exc).lower():
+                    # OOM 恢复：回退到 CPU + float32
+                    model = AutoModelForCausalLM.from_pretrained(
+                        path, torch_dtype=torch.float32, trust_remote_code=True,
+                    ).to("cpu").eval()
+                    device = "cpu"
+                else:
+                    raise
+            return (tok, model, device)
+
+        return self._slot.load(_do_load)
+
+    def unload(self) -> None:
+        self._slot.unload()
 
     def run(self, ctx: dict[str, Any], progress=None) -> dict[str, Any]:
         import torch

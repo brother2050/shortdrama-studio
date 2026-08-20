@@ -6,6 +6,7 @@ from typing import Any
 
 from app.adapters.base import (AdapterBase, AdapterError, AdapterSpec,
                                register_adapter)
+from app.vram import ModelSlot, pick_device, unload_model, check_vram
 
 _NEG_DEFAULT = "低清, 变形, 多余肢体, 文字水印, 过曝, 摩尔纹"
 
@@ -33,8 +34,7 @@ class DiffusersImage(AdapterBase):
         vram_gb=6.0, license="遵循所选模型许可（FLUX.1-schnell 为 Apache-2.0）",
     )
 
-    _pipe = None
-    _pipe_path = ""
+    _slot = ModelSlot("image_diffusers")
 
     def _load(self):
         path = str(self.params.get("model_path") or "").strip()
@@ -42,19 +42,37 @@ class DiffusersImage(AdapterBase):
             raise AdapterError(
                 "diffusers 图像后端需要设置参数 model_path（本地模型目录）。"
                 "离线下载：python scripts/download_models.py --capability image --local-dir ./models")
-        if self._pipe is not None and self._pipe_path == path:
-            return self._pipe
-        import torch
-        from diffusers import FluxPipeline, StableDiffusionPipeline
-        cls = FluxPipeline if "flux" in path.lower() else StableDiffusionPipeline
-        dtype = torch.bfloat16 if cls is FluxPipeline else torch.float16
-        if not torch.cuda.is_available():
-            dtype = torch.float32
-        self._pipe = cls.from_pretrained(path, torch_dtype=dtype)
-        if torch.cuda.is_available():
-            self._pipe = self._pipe.to("cuda")
-        self._pipe_path = path
-        return self._pipe
+        if self._slot.is_loaded:
+            return self._slot.model
+        if not check_vram(self.spec.vram_gb):
+            raise AdapterError(f"显存不足：需要约 {self.spec.vram_gb}GB，当前可用不足。"
+                               f"请先在系统页查看显存状态，或切换到不需要 GPU 的后端。")
+
+        def _do_load():
+            import torch
+            from diffusers import FluxPipeline, StableDiffusionPipeline
+            cls = FluxPipeline if "flux" in path.lower() else StableDiffusionPipeline
+            device = pick_device(self.params.get("device", "auto"), self.spec.vram_gb)
+            dtype = torch.bfloat16 if cls is FluxPipeline else torch.float16
+            if device != "cuda":
+                dtype = torch.float32
+            try:
+                pipe = cls.from_pretrained(path, torch_dtype=dtype)
+                if device == "cuda":
+                    pipe = pipe.to("cuda")
+            except (torch.cuda.OutOfMemoryError, RuntimeError) as exc:
+                if "out of memory" in str(exc).lower():
+                    # OOM 恢复：回退到 CPU + float32
+                    pipe = cls.from_pretrained(path, torch_dtype=torch.float32)
+                    pipe = pipe.to("cpu")
+                else:
+                    raise
+            return pipe
+
+        return self._slot.load(_do_load)
+
+    def unload(self) -> None:
+        self._slot.unload()
 
     def run(self, ctx: dict[str, Any], progress=None) -> dict[str, Any]:
         pipe = self._load()

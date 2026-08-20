@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import re
 import threading
 from typing import Any
 
@@ -101,6 +102,8 @@ class Settings:
             backend = conf.get("backend", "auto")
             if not isinstance(backend, str) or not backend:
                 raise SettingsError(f"capabilities.{cap}.backend 必须是非空字符串")
+            if backend != "auto" and not re.match(r'^[a-zA-Z0-9_]+$', backend):
+                raise SettingsError(f"capabilities.{cap}.backend 包含非法字符: {backend}")
             params = conf.get("params", {})
             if not isinstance(params, dict):
                 raise SettingsError(f"capabilities.{cap}.params 必须是对象")
@@ -108,6 +111,17 @@ class Settings:
         for key in ("width", "height", "fps"):
             if key in vo and (not isinstance(vo[key], int) or vo[key] <= 0):
                 raise SettingsError(f"video_output.{key} 必须是正整数")
+        ed = data.get("episode_defaults", {})
+        if "shots_per_episode" in ed:
+            sp = ed["shots_per_episode"]
+            if not isinstance(sp, int) or sp < 1 or sp > 50:
+                raise SettingsError("episode_defaults.shots_per_episode 必须是 1-50 的整数")
+        if "target_clip_seconds" in ed:
+            tc = ed["target_clip_seconds"]
+            if not isinstance(tc, (int, float)) or tc < 1.0 or tc > 60.0:
+                raise SettingsError("episode_defaults.target_clip_seconds 必须是 1.0-60.0 的数")
+        if "style" in ed and not isinstance(ed["style"], str):
+            raise SettingsError("episode_defaults.style 必须是字符串")
         return data
 
     # -- 便捷访问 -----------------------------------------------------------

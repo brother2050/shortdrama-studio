@@ -520,6 +520,12 @@ def run_pipeline(episode_id: str, stage: str = "all", force: bool = False) -> di
             final = tm.wait(task["id"], timeout=3600)
             summary["stages"][st] = {"task_id": task["id"], "status": final,
                                      "error": (tm.get(task["id"]) or {}).get("error", "")}
+            # Release VRAM between GPU-intensive stages
+            if st in ("keyframes", "clips") and final == "succeeded":
+                try:
+                    registry.unload_all()
+                except Exception:
+                    pass
             if final != "succeeded":
                 summary["status"] = final
                 break

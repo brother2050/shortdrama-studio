@@ -51,7 +51,29 @@ python -m app    # 打开 http://127.0.0.1:8320
 | 全局 | `style` | 电影感, 自然光… | 全局风格提示词（锁视觉一致性） |
 | 全局 | `video_output` | 1280×720@24 | 成片画幅 |
 
+## 显存（VRAM）管理
+
+平台内置显存管理模块（`app/vram.py`），自动处理：
+
+- **加载前检查**：模型加载前检查可用显存，不足时给出可读错误（不崩溃）
+- **OOM 恢复**：CUDA 显存不足时自动回退到 CPU + float32（附警告日志）
+- **智能设备选择**：`device=auto` 优先 CUDA，显存不够自动降级 CPU
+- **阶段间释放**：流水线在 GPU 密集阶段（keyframes/clips）完成后自动释放模型
+- **手动释放**：「系统」页可一键释放所有已加载模型
+- **API 接口**：`GET /api/system/vram` 查看状态，`POST /api/system/vram/release` 释放
+
+```bash
+# 查看显存状态
+curl :8320/api/system/vram
+
+# 手动释放所有模型显存
+curl -X POST :8320/api/system/vram/release
+```
+
 ## 新增后端（扩展）
 
 复制 `app/adapters/plugins/_TEMPLATE.py.example` 为新模块，实现 `run()` 并用
 `@register_adapter` 注册即可被 auto 选择与设置页渲染，无需改动任何其他代码。
+
+GPU 后端建议继承 `ModelSlot` 管理模型生命周期，并在 `spec.vram_gb` 声明显存需求，
+平台会自动在加载前检查、OOM 时恢复、阶段间释放。

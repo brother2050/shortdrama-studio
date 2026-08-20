@@ -7,8 +7,10 @@ Base URL: `http://127.0.0.1:8320`，全部 JSON。交互式文档：`/docs`（Fa
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/version` | 版本 |
-| GET | `/api/system/health` | 能力健康矩阵（配置/实际生效后端）+ 环境 |
+| GET | `/api/system/health` | 能力健康矩阵（配置/实际生效后端）+ 环境 + 显存状态 |
 | GET | `/api/system/backends` | 五能力 × 全部后端规格（设置页渲染用） |
+| GET | `/api/system/vram` | 显存状态（GPU 型号/总量/已用/可用/已加载模型） |
+| POST | `/api/system/vram/release` | 释放所有已加载模型（手动回收显存） |
 | GET | `/api/settings` | 读设置 |
 | PUT | `/api/settings` | 合并更新（深度合并，未提及键保留） |
 | GET | `/api/events` | SSE 事件流（task/progress/chat/episode/project） |

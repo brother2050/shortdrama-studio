@@ -23,8 +23,14 @@ _MIME = {
 
 def _safe_path(pid: str, rel: str) -> Path:
     base = paths.project_dir(pid).resolve()
+    # Reject obvious traversal attempts before resolving
+    if ".." in Path(rel).parts:
+        raise HTTPException(403, "非法路径")
     target = (base / rel).resolve()
-    if base not in target.parents and target != base:
+    # Strict containment check: target must be under base
+    try:
+        target.relative_to(base)
+    except ValueError:
         raise HTTPException(403, "非法路径")
     if not target.is_file():
         raise HTTPException(404, f"文件不存在: {rel}")

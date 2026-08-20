@@ -107,6 +107,10 @@ class AdapterBase:
     def run(self, ctx: dict[str, Any], progress: ProgressFn | None = None) -> dict[str, Any]:
         raise NotImplementedError
 
+    def unload(self) -> None:
+        """卸载模型释放显存（子类按需覆盖）。"""
+        pass
+
 
 # ----------------------------------------------------------------------
 # 注册表
@@ -123,7 +127,7 @@ class AdapterRegistry:
 
     def __init__(self) -> None:
         self._classes: dict[tuple[str, str], Type[AdapterBase]] = {}
-        self._instances: dict[tuple[str, str, int], AdapterBase] = {}
+        self._instances: dict[tuple[str, str, str], AdapterBase] = {}
         self._lock = threading.Lock()
 
     def register(self, cls: Type[AdapterBase]) -> Type[AdapterBase]:
@@ -173,13 +177,32 @@ class AdapterRegistry:
             raise AdapterUnavailableError(
                 f"{capability} 后端 {backend} 不可用：{info['reason']}。"
                 f"请在设置页更换后端，或安装依赖（见 requirements-models.txt）")
-        key = (capability, backend, hash(tuple(sorted((params or {}).items()))))
+        import json as _json
+        try:
+            param_key = _json.dumps(params or {}, sort_keys=True, ensure_ascii=False)
+        except (TypeError, ValueError):
+            param_key = str(sorted(params or {}))
+        key = (capability, backend, param_key)
         with self._lock:
             inst = self._instances.get(key)
             if inst is None:
                 inst = cls(params)
                 self._instances[key] = inst
             return inst
+
+    def unload_all(self) -> None:
+        """卸载所有缓存适配器实例（释放显存）。"""
+        with self._lock:
+            instances = list(self._instances.values())
+            self._instances.clear()
+        for inst in instances:
+            if hasattr(inst, "unload"):
+                try:
+                    inst.unload()
+                except Exception:
+                    pass
+        from app.vram import release_all
+        release_all()
 
 
 registry = AdapterRegistry()

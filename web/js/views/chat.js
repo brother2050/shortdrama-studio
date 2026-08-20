@@ -75,8 +75,20 @@ export function render(root) {
     logEl.append(el("div.msg", {},
       el("div.avatar", {}, "剧"),
       el("div.bubble", {},
-        "你好，我是短剧导演助手。从右侧「对话指令」开始，或在上面切换项目。\n",
-        "一句「创建一部 3 集的都市爱情短剧，名字叫《晚风》」就能开始。")));
+        el("strong", {}, "欢迎使用 ShortDrama Studio"),
+        el("div", { style: "margin-top:6px" },
+          "我是你的短剧导演助手，可以帮你从零开始创作连续短剧。"),
+        el("div", { style: "margin-top:8px" },
+          el("strong", {}, "快速开始：")),
+        el("ol", { style: "margin:4px 0; padding-left:20px" },
+          el("li", {}, "在下方输入「创建一部 3 集的都市爱情短剧，名字叫《晚风》」"),
+          el("li", {}, "然后说「生成第 1 集」，我会自动完成 8 个阶段"),
+          el("li", {}, "随时说「现在什么进度」查看进展"),
+          el("li", {}, "失败后说「重试失败的任务」即可继续")),
+        el("div.muted.small", { style: "margin-top:8px" },
+          "💡 首次使用推荐先用 mock 后端快速体验全流程，再到「设置」页配置真实模型。"),
+        el("div.muted.small", {},
+          "💡 想要更高质量？在「设置」页把后端从 mock 切换到 diffusers/transformers_qwen/cosyvoice。"))));
   }
 
   root.append(el("div.chat-wrap", {},

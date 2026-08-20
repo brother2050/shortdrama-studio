@@ -13,10 +13,20 @@ async function load(root) {
     const sel = el("select", {},
       el("option", { value: "auto" }, "auto（自动选择可用后端）"),
       ...specs.map((s) => el("option", {
-        value: s.name, selected: conf.backend === s.name ? "" : null },
-        `${s.name} — ${s.display_name}${s.available === false ? "（未安装依赖）" : ""}`)));
+        value: s.name,
+        selected: conf.backend === s.name ? "" : null,
+        disabled: s.available === false ? "" : null },
+        `${s.name} — ${s.display_name}${s.available === false ? "（未安装依赖）" : " ✓"}`)));
     sel.value = conf.backend;
-    sel.addEventListener("change", () => { conf.backend = sel.value; });
+    sel.addEventListener("change", () => {
+      conf.backend = sel.value;
+      const newSpec = specs.find((s) => s.name === sel.value);
+      if (newSpec?.default_params && Object.keys(newSpec.default_params).length) {
+        const merged = { ...newSpec.default_params, ...(conf.params || {}) };
+        conf.params = merged;
+        paramsArea.value = JSON.stringify(merged, null, 2);
+      }
+    });
 
     const spec = specs.find((s) => s.name === sel.value);
     const paramsArea = el("textarea.json", {
@@ -33,8 +43,17 @@ async function load(root) {
       docs.innerHTML = "";
       docs.append(s ? `${s.description || ""}` : "auto：按可用性与优先级自动挑选已注册后端。");
       if (s?.param_docs && Object.keys(s.param_docs).length) {
-        docs.append(el("div.mono", { style: "margin-top:4px" },
-          Object.entries(s.param_docs).map(([k, v]) => `${k}: ${v}`).join("\n")));
+        const docsList = el("div.mono", { style: "margin-top:4px" });
+        for (const [k, v] of Object.entries(s.param_docs)) {
+          docsList.append(el("div", { style: "margin:2px 0" },
+            el("span", { style: "color:var(--accent)" }, k),
+            `: ${v}`));
+        }
+        docs.append(docsList);
+      }
+      if (s?.vram_gb) {
+        docs.append(el("div", { style: "margin-top:6px" },
+          el("span.badge", {}, `显存需求: ${s.vram_gb}GB`)));
       }
     };
     sel.addEventListener("change", updateDocs);

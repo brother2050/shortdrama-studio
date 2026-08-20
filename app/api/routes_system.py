@@ -27,6 +27,21 @@ def backends():
     return {cap: registry.list_specs(cap) for cap in CAPABILITIES}
 
 
+@router.get("/system/vram")
+def vram_status():
+    """显存状态：设备信息 + 已加载模型列表。"""
+    from app.vram import vram_summary
+    return vram_summary()
+
+
+@router.post("/system/vram/release")
+def vram_release():
+    """手动释放所有已加载模型（释放显存）。"""
+    registry.unload_all()
+    from app.vram import vram_summary
+    return vram_summary()
+
+
 @router.get("/settings")
 def get_settings_api():
     from app.config import get_settings

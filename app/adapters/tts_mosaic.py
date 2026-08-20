@@ -7,6 +7,7 @@ mosaic 的 TTS 节点内置 ChatTTS / Fish Speech / GPT-SoVITS / CosyVoice 四�
 from __future__ import annotations
 
 import os
+import wave
 from pathlib import Path
 from typing import Any
 

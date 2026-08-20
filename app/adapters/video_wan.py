@@ -6,6 +6,7 @@ from typing import Any
 
 from app.adapters.base import (AdapterBase, AdapterError, AdapterSpec,
                                register_adapter)
+from app.vram import ModelSlot, pick_device, unload_model, check_vram
 
 
 @register_adapter
@@ -27,7 +28,7 @@ class WanI2VVideo(AdapterBase):
         vram_gb=8.0, license="Apache-2.0（Wan2.x）",
     )
 
-    _pipe = None
+    _slot = ModelSlot("video_wan")
 
     def _load(self):
         path = str(self.params.get("model_path") or "").strip()
@@ -35,16 +36,34 @@ class WanI2VVideo(AdapterBase):
             raise AdapterError(
                 "wan_i2v 需要设置参数 model_path（本地模型目录）。"
                 "离线下载：python scripts/download_models.py --capability video --local-dir ./models")
-        if self._pipe is not None:
-            return self._pipe
-        import torch
-        from diffusers import WanImageToVideoPipeline
-        dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
-        pipe = WanImageToVideoPipeline.from_pretrained(path, torch_dtype=dtype)
-        if torch.cuda.is_available():
-            pipe.to("cuda")
-        self._pipe = pipe
-        return pipe
+        if self._slot.is_loaded:
+            return self._slot.model
+        if not check_vram(self.spec.vram_gb):
+            raise AdapterError(f"显存不足：需要约 {self.spec.vram_gb}GB，当前可用不足。"
+                               f"请先在系统页查看显存状态，或切换到不需要 GPU 的后端。")
+
+        def _do_load():
+            import torch
+            from diffusers import WanImageToVideoPipeline
+            device = pick_device(self.params.get("device", "auto"), self.spec.vram_gb)
+            dtype = torch.bfloat16 if device == "cuda" else torch.float32
+            try:
+                pipe = WanImageToVideoPipeline.from_pretrained(path, torch_dtype=dtype)
+                if device == "cuda":
+                    pipe = pipe.to("cuda")
+            except (torch.cuda.OutOfMemoryError, RuntimeError) as exc:
+                if "out of memory" in str(exc).lower():
+                    # OOM 恢复：回退到 CPU + float32
+                    pipe = WanImageToVideoPipeline.from_pretrained(path, torch_dtype=torch.float32)
+                    pipe = pipe.to("cpu")
+                else:
+                    raise
+            return pipe
+
+        return self._slot.load(_do_load)
+
+    def unload(self) -> None:
+        self._slot.unload()
 
     def run(self, ctx: dict[str, Any], progress=None) -> dict[str, Any]:
         from PIL import Image  # diffusers 环境必带 Pillow

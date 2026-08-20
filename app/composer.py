@@ -123,4 +123,7 @@ def compose_episode(shots: list[dict[str, Any]], out_dir: Path,
         raise ComposerError("合成完成但未找到产物 episode.mp4")
     if progress:
         progress("成片完成", 95.0)
+    # Cleanup temp files (keep episode.mp4)
+    import shutil
+    shutil.rmtree(work, ignore_errors=True)
     return out

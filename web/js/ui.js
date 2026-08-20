@@ -9,7 +9,7 @@ export function el(spec, attrs = {}, ...children) {
     if (v == null) continue;
     if (k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2), v);
     else if (k === "html") node.innerHTML = v;
-    else if (k in node && k !== "type" && k !== "value" && typeof node[k] === "boolean") node[k] = v;
+    else if (k in node && k !== "type" && k !== "value" && typeof node[k] === "boolean") node[k] = v === "" ? true : v;
     else node.setAttribute(k, v);
   }
   for (const c of children.flat()) {
