@@ -5,7 +5,7 @@
 - schemas     pydantic 数据模型
 - store       SQLite 存储（标准库 sqlite3）
 - events      事件总线（SSE 推送）
-- adapters/   五大能力适配器（注册表模式，参考 mosaic TTSBackendRegistry）
+- adapters/   五大能力适配器（注册表模式 + ModelSlot 显存生命周期）
 - tasks       任务管理器（状态机 + 手工重试，无自动重试）
 - continuity  连续性（角色资产、跨集摘要、外貌锁定）
 - composer    ffmpeg 成片合成

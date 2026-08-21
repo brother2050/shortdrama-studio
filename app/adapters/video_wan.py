@@ -28,7 +28,7 @@ class WanI2VVideo(AdapterBase):
         vram_gb=8.0, license="Apache-2.0（Wan2.x）",
     )
 
-    _slot = ModelSlot("video_wan")
+    _slot = ModelSlot("video_wan", capability="video")
 
     def _load(self):
         path = str(self.params.get("model_path") or "").strip()

@@ -34,7 +34,7 @@ class DiffusersImage(AdapterBase):
         vram_gb=6.0, license="遵循所选模型许可（FLUX.1-schnell 为 Apache-2.0）",
     )
 
-    _slot = ModelSlot("image_diffusers")
+    _slot = ModelSlot("image_diffusers", capability="image")
 
     def _load(self):
         path = str(self.params.get("model_path") or "").strip()

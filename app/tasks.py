@@ -1,4 +1,4 @@
-"""任务管理器：统一任务中心（参考 mosaic TaskManager 与 Jellyfish 任务中心）。
+"""任务管理器：统一任务中心（ThreadPool + SQLite 持久化 + EventBus）。
 
 状态机：pending → running → succeeded / failed / canceled
 

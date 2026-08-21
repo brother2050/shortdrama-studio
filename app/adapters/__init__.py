@@ -21,8 +21,10 @@ from app.adapters import llm_mock          # noqa: E402,F401
 from app.adapters import llm_ollama        # noqa: E402,F401
 from app.adapters import llm_transformers  # noqa: E402,F401
 from app.adapters import tts_mock          # noqa: E402,F401
-from app.adapters import tts_mosaic        # noqa: E402,F401
 from app.adapters import tts_cosyvoice     # noqa: E402,F401
+from app.adapters import tts_chattts       # noqa: E402,F401
+from app.adapters import tts_gptsovits     # noqa: E402,F401
+from app.adapters import tts_fishspeech    # noqa: E402,F401
 from app.adapters import image_mock        # noqa: E402,F401
 from app.adapters import image_diffusers   # noqa: E402,F401
 from app.adapters import video_kenburns    # noqa: E402,F401

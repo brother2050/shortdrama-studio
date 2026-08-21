@@ -44,9 +44,8 @@ _GENRES = {"都市": "都市情感", "爱情": "爱情", "悬疑": "悬疑", "�
            "科幻": "科幻", "喜剧": "喜剧", "奇幻": "奇幻", "谍战": "谍战",
            "青春": "青春", "家庭": "家庭", "复仇": "都市复仇"}
 _BACKEND_HINTS = [
-    ("cosyvoice", "tts", "cosyvoice"), ("mosaic", "tts", "mosaic"),
-    ("chattts", "tts", "mosaic"), ("fish", "tts", "mosaic"),
-    ("sovits", "tts", "mosaic"),
+    ("cosyvoice", "tts", "cosyvoice"), ("chattts", "tts", "chattts"),
+    ("sovits", "tts", "gpt_sovits"), ("fish", "tts", "fish_speech"),
     ("qwen", "llm", "transformers_qwen"), ("ollama", "llm", "ollama"),
     ("wan", "video", "wan_i2v"), ("kenburns", "video", "kenburns"),
     ("flux", "image", "diffusers"), ("sdxl", "image", "diffusers"),

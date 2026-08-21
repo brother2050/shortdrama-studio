@@ -38,7 +38,7 @@ class TransformersQwenLLM(AdapterBase):
         vram_gb=2.0, license="Apache-2.0（Qwen 系列模型）",
     )
 
-    _slot = ModelSlot("llm_transformers")
+    _slot = ModelSlot("llm_transformers", capability="llm")
 
     def _load(self):
         path = str(self.params.get("model_path") or "").strip()

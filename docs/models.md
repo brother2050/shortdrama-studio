@@ -11,8 +11,10 @@
 | llm | `ollama` | qwen2.5:0.5b~7b | 由 Ollama 管 | 模型许可 | 本机 Ollama 服务（OpenAI 兼容） |
 | llm | `transformers_qwen` | Qwen/Qwen2.5-{0.5B,1.5B,7B}-Instruct | 2~16GB | Apache-2.0 | 完全离线推理，0.5B 可 CPU |
 | tts | `mock` | 内置正弦波 | 0 | MIT | 零依赖兜底 |
-| tts | `cosyvoice` | iic/CosyVoice2-0.5B | 2GB | CosyVoice 许可 | 多音色中文配音（推荐） |
-| tts | `mosaic` | 内置四引擎（见下） | 0~2GB | 各引擎许可 | ChatTTS/CosyVoice/GPT-SoVITS/Fish 路由 |
+| tts | `cosyvoice` | iic/CosyVoice2-0.5B | 2GB | Apache-2.0 | 多音色中文配音（推荐） |
+| tts | `chattts` | pzc163/chatTTS | 1.5GB | CC-BY-NC-4.0 | 对话感配音，角色固定种子 |
+| tts | `gpt_sovits` | AIDub/GPT-SoVITS | 3GB | MIT | 声音克隆（参考音频） |
+| tts | `fish_speech` | fishaudio/fish-speech-1.5 | 4GB | CC-BY-NC-SA | 多语言配音/克隆 |
 | image | `mock` | 内置 PNG 生成 | 0 | MIT | 零依赖兜底（色块构图） |
 | image | `diffusers` | SD1.5 / SDXL / FLUX.1-schnell / Qwen-Image | 4~12GB | 各模型许可 | 关键帧文生图 |
 | video | `kenburns` | ffmpeg | 0 | - | 关键帧 Ken Burns 运镜（默认，零依赖） |
@@ -51,22 +53,18 @@ python -m app    # 打开 http://127.0.0.1:8320
 | 全局 | `style` | 电影感, 自然光… | 全局风格提示词（锁视觉一致性） |
 | 全局 | `video_output` | 1280×720@24 | 成片画幅 |
 
-## 多引擎 TTS（mosaic 后端，内置移植）
+## TTS 四后端（全部本地库推理，无 HTTP 服务）
 
-设计源自 mosaic 项目的 TTS 节点，四引擎核心调用代码已内置到
-`app/adapters/tts_libs/`，**不依赖 mosaic 包**，每个引擎只保留自身最小依赖：
+| 后端 | 安装 | 关键参数 | 特点 |
+|---|---|---|---|
+| `cosyvoice` | `git clone --recursive .../CosyVoice && pip install -e ./CosyVoice` | `model_dir` | 多音色中文，音质最佳（推荐） |
+| `chattts` | `pip install ChatTTS` | `model_dir`（可空） | 对话感强；固定种子保角色音色一致 |
+| `gpt_sovits` | `git clone .../GPT-SoVITS && pip install -e ./GPT-SoVITS` | `ref_audio` + `prompt_text`，或 `voice_refs` | 参考音频克隆，按角色映射 |
+| `fish_speech` | `git clone .../fish-speech && pip install -e ./fish-speech` | `checkpoint_dir`，可选 `ref_audio` | LLM+Codec，多语言；可克隆 |
 
-| engine | 接入方式 | 依赖 | 显存 | 特点 |
-|---|---|---|---|---|
-| `cosyvoice` | 本地库 | `pip install -e ./CosyVoice` + 模型目录 | 2GB | 多音色中文，音质最佳 |
-| `chattts` | 本地库 | `pip install ChatTTS`（模型可离线下载） | 1.5GB | 对话感强，角色音色固定种子 |
-| `gpt_sovits` | HTTP 服务 | `api_v2.py -p 9880`（仓库源码运行） | 由服务管 | 声音克隆（参考音频） |
-| `fish_speech` | HTTP 服务 | `tools/api_server.py`（仓库源码运行） | 由服务管 | 声音克隆（reference_id） |
-
-- `engine=auto`（默认）：按就绪状态自动路由，本地库优先（离线友好）
-- 显式指定：设置页 `engine` 参数填 `chattts` / `cosyvoice` / `gpt_sovits` / `fish_speech`
-- 克隆音色：`sovits_voice_refs`（音色 id → 参考音频）或 `fish_voice_refs`（音色 id → reference_id）
-- ChatTTS 模型离线下载：`python scripts/download_models.py --capability tts --preset chattts`
+- 模型离线下载：`python scripts/download_models.py --capability tts --list`（四档可选）
+- 克隆类后端（gpt_sovits/fish_speech）：`voice_refs` 参数按角色音色 id 映射不同参考音频
+- 显存切换保护：设置页切换 TTS 后端时自动释放旧模型显存（见下节）
 
 ## 显存（VRAM）管理
 
@@ -75,6 +73,7 @@ python -m app    # 打开 http://127.0.0.1:8320
 - **加载前检查**：模型加载前检查可用显存，不足时给出可读错误（不崩溃）
 - **OOM 恢复**：CUDA 显存不足时自动回退到 CPU + float32（附警告日志）
 - **智能设备选择**：`device=auto` 优先 CUDA，显存不够自动降级 CPU
+- **后端切换释放**：设置页切换某能力后端/参数时，自动释放该能力旧模型（防双份模型占显存）
 - **阶段间释放**：流水线在 GPU 密集阶段（keyframes/clips）完成后自动释放模型
 - **手动释放**：「系统」页可一键释放所有已加载模型
 - **API 接口**：`GET /api/system/vram` 查看状态，`POST /api/system/vram/release` 释放

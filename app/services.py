@@ -8,6 +8,7 @@ from typing import Any
 
 from app import paths
 from app.adapters import registry, which_ffmpeg
+from app.adapters.base import CAPABILITIES
 from app.config import SettingsError, get_settings
 from app.continuity import load_assets
 from app.events import get_bus
@@ -190,10 +191,19 @@ def task_list(**filters) -> list[dict]:
 # 设置 / 系统
 # ----------------------------------------------------------------------
 def update_settings(partial: dict) -> dict:
+    """合并更新设置；能力的后端/参数变化时释放其旧模型（多引擎切换显存回收）。"""
     try:
-        return get_settings().update(partial)
+        settings = get_settings()
+        before = {cap: settings.capability(cap) for cap in CAPABILITIES}
+        result = settings.update(partial)
     except SettingsError as exc:
         raise ServiceError(str(exc)) from exc
+    for cap in CAPABILITIES:
+        after = settings.capability(cap)
+        if before[cap]["backend"] != after["backend"] or \
+           before[cap]["params"] != after["params"]:
+            registry.unload_capability(cap)
+    return result
 
 
 def system_health() -> dict:

@@ -1,4 +1,4 @@
-"""能力适配器基类与注册表（参考 mosaic TTSBackendRegistry 模式）。
+"""能力适配器基类与注册表（注册表模式 + ModelSlot 显存生命周期）。
 
 五大能力与 run() 契约
 --------------------
@@ -203,6 +203,22 @@ class AdapterRegistry:
                     pass
         from app.vram import release_all
         release_all()
+
+    def unload_capability(self, capability: str) -> None:
+        """卸载某能力的全部缓存实例与模型（切换后端时调用，防双份模型占显存）。"""
+        if capability not in CAPABILITIES:
+            return
+        with self._lock:
+            keys = [k for k in self._instances if k[0] == capability]
+            instances = [self._instances.pop(k) for k in keys]
+        for inst in instances:
+            if hasattr(inst, "unload"):
+                try:
+                    inst.unload()
+                except Exception:
+                    pass
+        from app.vram import release_capability
+        release_capability(capability)
 
 
 registry = AdapterRegistry()

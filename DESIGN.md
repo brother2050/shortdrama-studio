@@ -2,8 +2,7 @@
 
 > 版本：v1.0 · 状态：已定稿 · 定位：**完全离线可用**的对话式连续短剧生成平台
 >
-> 参考项目：`brother2050/mosaic`（全模态节点框架、TTS 多后端路由、任务/事件/注册表模式）、
-> MoneyPrinterTurbo / NarratoAI / ShortGPT / Huobao Drama / Jellyfish / VideoClaw（短剧流水线、
+> 参考项目：MoneyPrinterTurbo / NarratoAI / ShortGPT / Huobao Drama / Jellyfish / VideoClaw（短剧流水线、
 > 分镜状态机、资产一致性）、ModelScope 离线模型生态（Qwen / CosyVoice2 / FunASR / Wan2.1 / FLUX / SD）。
 
 ---
@@ -44,9 +43,9 @@
 │  app/tasks.py 任务管理器（ThreadPool + SQLite 持久化 + EventBus）    │
 │  app/continuity.py 连续性（世界观/角色/场景资产 + 跨集滚动摘要）       │
 ├────────────────────────────────────────────────────────────────────┤
-│  app/adapters/ 能力适配器（注册表模式，参考 mosaic TTSBackendRegistry）│
+│  app/adapters/ 能力适配器（注册表模式 + ModelSlot 显存生命周期）        │
 │   llm:  mock │ transformers_qwen(ModelScope) │ ollama              │
-│   tts:  mock │ mosaic │ cosyvoice                                  │
+│   tts:  mock │ cosyvoice │ chattts │ gpt_sovits │ fish_speech     │
 │   image:mock │ diffusers(SD/FLUX/Qwen-Image)                        │
 │   video:kenburns(ffmpeg，默认) │ wan_i2v(diffusers)                │
 │   asr:  script(默认) │ funasr(SenseVoice/Paraformer)                │
@@ -56,7 +55,7 @@
 ```
 
 设计原则（源自参考项目的最佳实践）：
-1. **注册表 + 规格描述**（mosaic）：每个后端带 `AdapterSpec`（能力、依赖、默认参数、参数说明），
+1. **注册表 + 规格描述**：每个后端带 `AdapterSpec`（能力、依赖、默认参数、参数说明），
    惰性导入，未安装依赖时可注册、不可用、可降级。
 2. **统一任务中心**（Jellyfish）：所有阶段统一 `Task` 模型，状态机
    `pending → running → succeeded / failed / canceled`，支持取消与手工重试。
@@ -152,15 +151,16 @@ data/
 ### 5.2 TTS（配音）
 | 后端 | 依赖 | 模型 | 采样率 | 显存 | 许可 | 备注 |
 |---|---|---|---:|---:|---|---|
-| `mock`（默认兜底） | 无（stdlib wave） | - | 24000 | 0 | - | 按音色生成可听的正弦谐波音轨，时长=按字数估算，离线可跑 |
-| `mosaic` | 内置四引擎（`app/adapters/tts_libs/`，无外部包依赖） | ChatTTS / Fish / GPT-SoVITS / CosyVoice | 24k–44.1k | 0–2GB | 各异 | 四引擎核心调用内置移植，`engine=auto` 就绪路由（本地优先） |
-| `cosyvoice` | cosyvoice 包 | `iic/CosyVoice2-0.5B`（需另下 `iic/CosyVoice-ttsfrd`） | 24000 | 2GB | Apache-2.0 | 质量最佳，ModelScope 离线；与 `mosaic engine=cosyvoice` 共享模型单例 |
+| `mock`（默认兜底） | 无（stdlib wave） | - | 24000 | 0 | MIT | 按音色生成可听的正弦谐波音轨，时长=按字数估算，离线可跑 |
+| `cosyvoice` | cosyvoice 包 | `iic/CosyVoice2-0.5B`（需另下 `iic/CosyVoice-ttsfrd`） | 24000 | 2GB | Apache-2.0 | 质量最佳，多音色 SFT，ModelScope 离线 |
+| `chattts` | ChatTTS 包 | `pzc163/chatTTS` | 24000 | 1.5GB | CC-BY-NC-4.0 | 对话感；音色固定种子（同角色跨集一致） |
+| `gpt_sovits` | GPT_SoVITS 包（仓库源码安装） | `AIDub/GPT-SoVITS` | 32000 | 3GB | MIT | 声音克隆：`ref_audio`+`prompt_text` 或 `voice_refs` 按角色映射 |
+| `fish_speech` | fish_speech 包（仓库源码安装） | `fishaudio/fish-speech-1.5` | 由 codec 决定 | 4GB | CC-BY-NC-SA | LLM+Codec 多语言；`voice_refs` 参考音频克隆 |
 
-`mosaic` 四引擎接入：`cosyvoice`/`chattts` 本地库惰性导入（OOM 回退 CPU、
-ModelSlot 统一卸载）；`gpt_sovits`(9880)/`fish_speech`(8080) HTTP 服务调用
-（标准库 urllib，零依赖）。参数：`engine`、`device`、`chattts_model_dir`、
-`cosyvoice_model_dir`、`sovits_url/sovits_ref_audio/sovits_prompt_text/sovits_voice_refs`、
-`fish_url/fish_reference_id/fish_api_key/fish_voice_refs`。
+四后端全部本地库推理（无 HTTP 服务），统一走 `ModelSlot(capability="tts")` 管理：
+加载前显存检查、OOM 回退 CPU、设置页切换后端时自动释放旧模型显存。
+参数：`model_dir`/`checkpoint_dir`（模型目录）、`voice_map`（角色→音色）、
+`ref_audio`+`prompt_text`（克隆）、`voice_refs`（按角色克隆映射）、`speed`。
 
 ### 5.3 图像（关键帧/角色参考图）
 | 后端 | 依赖 | 模型（ModelScope id） | 显存 | 许可 | 备注 |
@@ -283,7 +283,7 @@ shortdrama-studio/
 
 - **核心运行**：`fastapi`、`uvicorn`（其余全为标准库：sqlite3/json/wave/struct/zlib/threading/asyncio/uuid/hashlib/socket/shutil/subprocess/argparse）。mock 图像编码器为纯 stdlib PNG 写入（zlib+struct），TTS 为纯 stdlib wave 合成。
 - **开发测试**：`pytest`、`httpx`（FastAPI TestClient 所需）。
-- **可选模型栈**（`requirements-models.txt`，按能力分组、全部带用途注释，缺省不安装）：torch、transformers、diffusers、accelerate、modelscope、funasr；mosaic/CosyVoice 以本地路径安装说明。
+- **可选模型栈**（`requirements-models.txt`，按能力分组、全部带用途注释，缺省不安装）：torch、transformers、diffusers、accelerate、modelscope、funasr、ChatTTS；CosyVoice / GPT-SoVITS / Fish Speech 以本地路径安装说明。
 - 有专门测试保证：核心依赖均可导入、均被使用；未列依赖不被隐式引用（惰性导入仅在可选后端内）。
 
 ## 12. 扩展指南（三步新增一个后端）

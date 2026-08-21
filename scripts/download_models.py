@@ -41,9 +41,13 @@ MODEL_CATALOG: dict[str, dict[str, tuple[str, float, str]]] = {
     },
     "tts": {
         "cosyvoice2-0.5b": ("iic/CosyVoice2-0.5B", 5.0,
-                             "推荐：多音色中文配音（cosyvoice 直连 / mosaic engine=cosyvoice）"),
+                             "推荐：多音色中文配音（tts=cosyvoice）"),
         "chattts": ("pzc163/chatTTS", 2.0,
-                     "对话感中文配音（mosaic engine=chattts，另需 pip install ChatTTS）"),
+                     "对话感中文配音（tts=chattts，另需 pip install ChatTTS）"),
+        "gpt-sovits": ("AIDub/GPT-SoVITS", 4.0,
+                        "声音克隆配音（tts=gpt_sovits，另需 GPT-SoVITS 仓库源码安装）"),
+        "fish-speech-1.5": ("fishaudio/fish-speech-1.5", 8.0,
+                             "多语言配音/克隆（tts=fish_speech，另需 fish-speech 仓库源码安装）"),
     },
     "image": {
         "sd15": ("AI-ModelScope/stable-diffusion-v1-5", 5.0, "入门：快、省显存"),
@@ -105,9 +109,13 @@ def print_usage_hint(results: dict[str, Path | None]) -> None:
         if cap == "llm":
             backend, params = "transformers_qwen", {"model_path": str(path)}
         elif cap == "tts":
-            if "chattts" in str(path):
-                backend, params = "mosaic", {
-                    "engine": "chattts", "chattts_model_dir": str(path)}
+            if "chatTTS" in str(path) or "chattts" in str(path):
+                backend, params = "chattts", {"model_dir": str(path)}
+            elif "GPT-SoVITS" in str(path):
+                backend, params = "gpt_sovits", {"ref_audio": "填参考音频wav路径",
+                                                  "prompt_text": "填参考音频文本"}
+            elif "fish" in str(path):
+                backend, params = "fish_speech", {"checkpoint_dir": str(path)}
             else:
                 backend, params = "cosyvoice", {"model_dir": str(path)}
         elif cap == "image":
