@@ -11,8 +11,8 @@
 | llm | `ollama` | qwen2.5:0.5b~7b | 由 Ollama 管 | 模型许可 | 本机 Ollama 服务（OpenAI 兼容） |
 | llm | `transformers_qwen` | Qwen/Qwen2.5-{0.5B,1.5B,7B}-Instruct | 2~16GB | Apache-2.0 | 完全离线推理，0.5B 可 CPU |
 | tts | `mock` | 内置正弦波 | 0 | MIT | 零依赖兜底 |
-| tts | `cosyvoice` | iic/CosyVoice2-0.5B | 4GB | CosyVoice 许可 | 多音色中文配音（推荐） |
-| tts | `mosaic` | brother2050/mosaic | 2GB | 见仓库 | mosaic 项目 TTS，四层管线 |
+| tts | `cosyvoice` | iic/CosyVoice2-0.5B | 2GB | CosyVoice 许可 | 多音色中文配音（推荐） |
+| tts | `mosaic` | 内置四引擎（见下） | 0~2GB | 各引擎许可 | ChatTTS/CosyVoice/GPT-SoVITS/Fish 路由 |
 | image | `mock` | 内置 PNG 生成 | 0 | MIT | 零依赖兜底（色块构图） |
 | image | `diffusers` | SD1.5 / SDXL / FLUX.1-schnell / Qwen-Image | 4~12GB | 各模型许可 | 关键帧文生图 |
 | video | `kenburns` | ffmpeg | 0 | - | 关键帧 Ken Burns 运镜（默认，零依赖） |
@@ -50,6 +50,23 @@ python -m app    # 打开 http://127.0.0.1:8320
 | 全局 | `target_clip_seconds` | 5.0 | 单镜头目标时长（配音更长则顺延） |
 | 全局 | `style` | 电影感, 自然光… | 全局风格提示词（锁视觉一致性） |
 | 全局 | `video_output` | 1280×720@24 | 成片画幅 |
+
+## 多引擎 TTS（mosaic 后端，内置移植）
+
+设计源自 mosaic 项目的 TTS 节点，四引擎核心调用代码已内置到
+`app/adapters/tts_libs/`，**不依赖 mosaic 包**，每个引擎只保留自身最小依赖：
+
+| engine | 接入方式 | 依赖 | 显存 | 特点 |
+|---|---|---|---|---|
+| `cosyvoice` | 本地库 | `pip install -e ./CosyVoice` + 模型目录 | 2GB | 多音色中文，音质最佳 |
+| `chattts` | 本地库 | `pip install ChatTTS`（模型可离线下载） | 1.5GB | 对话感强，角色音色固定种子 |
+| `gpt_sovits` | HTTP 服务 | `api_v2.py -p 9880`（仓库源码运行） | 由服务管 | 声音克隆（参考音频） |
+| `fish_speech` | HTTP 服务 | `tools/api_server.py`（仓库源码运行） | 由服务管 | 声音克隆（reference_id） |
+
+- `engine=auto`（默认）：按就绪状态自动路由，本地库优先（离线友好）
+- 显式指定：设置页 `engine` 参数填 `chattts` / `cosyvoice` / `gpt_sovits` / `fish_speech`
+- 克隆音色：`sovits_voice_refs`（音色 id → 参考音频）或 `fish_voice_refs`（音色 id → reference_id）
+- ChatTTS 模型离线下载：`python scripts/download_models.py --capability tts --preset chattts`
 
 ## 显存（VRAM）管理
 

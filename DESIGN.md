@@ -153,10 +153,14 @@ data/
 | 后端 | 依赖 | 模型 | 采样率 | 显存 | 许可 | 备注 |
 |---|---|---|---:|---:|---|---|
 | `mock`（默认兜底） | 无（stdlib wave） | - | 24000 | 0 | - | 按音色生成可听的正弦谐波音轨，时长=按字数估算，离线可跑 |
-| `mosaic` | mosaic 包（本项目参考库） | ChatTTS/Fish/GPT-SoVITS/CosyVoice 四后端 | 24k–44.1k | 1–2GB | 各异 | 复用 mosaic TTS 节点路由 |
-| `cosyvoice` | cosyvoice 包 | `iic/CosyVoice2-0.5B`（需另下 `iic/CosyVoice-ttsfrd`） | 24000 | 1–2GB | Apache-2.0 | 质量最佳，ModelScope 离线 |
+| `mosaic` | 内置四引擎（`app/adapters/tts_libs/`，无外部包依赖） | ChatTTS / Fish / GPT-SoVITS / CosyVoice | 24k–44.1k | 0–2GB | 各异 | 四引擎核心调用内置移植，`engine=auto` 就绪路由（本地优先） |
+| `cosyvoice` | cosyvoice 包 | `iic/CosyVoice2-0.5B`（需另下 `iic/CosyVoice-ttsfrd`） | 24000 | 2GB | Apache-2.0 | 质量最佳，ModelScope 离线；与 `mosaic engine=cosyvoice` 共享模型单例 |
 
-参数：`model_dir`、`voice_map`(角色→音色，默认自动分配)、`speed`(1.0)、`sample_rate`。
+`mosaic` 四引擎接入：`cosyvoice`/`chattts` 本地库惰性导入（OOM 回退 CPU、
+ModelSlot 统一卸载）；`gpt_sovits`(9880)/`fish_speech`(8080) HTTP 服务调用
+（标准库 urllib，零依赖）。参数：`engine`、`device`、`chattts_model_dir`、
+`cosyvoice_model_dir`、`sovits_url/sovits_ref_audio/sovits_prompt_text/sovits_voice_refs`、
+`fish_url/fish_reference_id/fish_api_key/fish_voice_refs`。
 
 ### 5.3 图像（关键帧/角色参考图）
 | 后端 | 依赖 | 模型（ModelScope id） | 显存 | 许可 | 备注 |

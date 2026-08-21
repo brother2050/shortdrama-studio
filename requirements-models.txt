@@ -20,8 +20,13 @@ modelscope>=1.18
 # 模型：iic/SenseVoiceSmall(CPU 友好) / iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch
 funasr>=1.1
 
-# ---- TTS（配音）可选后端，二选一 ----
-# mosaic（本项目参考框架，四后端路由：ChatTTS/Fish/GPT-SoVITS/CosyVoice）：
-#   pip install -e /path/to/mosaic
-# CosyVoice2：模型 iic/CosyVoice2-0.5B（需另下 iic/CosyVoice-ttsfrd）
-#   pip install -e /path/to/CosyVoice
+# ---- TTS（配音）可选后端，按需安装 ----
+# 多引擎后端 mosaic（内置四引擎路由，无需 mosaic 包）：
+#   本地引擎 CosyVoice2：模型 iic/CosyVoice2-0.5B（另下 iic/CosyVoice-ttsfrd）
+#     git clone --recursive https://github.com/FunAudioLLM/CosyVoice.git
+#     pip install -e ./CosyVoice
+#   本地引擎 ChatTTS（对话感配音，模型 pzc163/chatTTS）：
+ChatTTS>=0.2
+#   服务引擎 GPT-SoVITS / Fish Speech：零 Python 依赖，仅指向其 HTTP 服务
+#     GPT-SoVITS：git clone https://github.com/RVC-Boss/GPT-SoVITS && python api_v2.py -p 9880
+#     Fish Speech：git clone https://github.com/fishaudio/fish-speech && python tools/api_server.py

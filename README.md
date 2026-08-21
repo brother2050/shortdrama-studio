@@ -55,7 +55,7 @@ http://127.0.0.1:8320
 | 1 | worldview 世界观 | `worldview.md` + 角色资产 | LLM：mock / transformers_qwen / ollama |
 | 2 | script 剧本 | `script.md` `script.json` | LLM 同上 |
 | 3 | storyboard 分镜 | `storyboard.json` | LLM 同上 |
-| 4 | voiceover 配音 | `shots/*/vo.wav` | TTS：mock / mosaic / cosyvoice |
+| 4 | voiceover 配音 | `shots/*/vo.wav` | TTS：mock / mosaic(四引擎内置路由) / cosyvoice |
 | 5 | keyframes 关键帧 | `shots/*/keyframe.png` | 图像：mock / diffusers(SD/SDXL/FLUX/Qwen-Image) |
 | 6 | clips 镜头片段 | `shots/*/clip.mp4` | 视频：kenburns(ffmpeg，默认) / wan_i2v(Wan2.1/2.2) |
 | 7 | subtitles 字幕 | `episode.srt` | ASR：script(默认) / funasr(SenseVoice/Paraformer) |

@@ -1,5 +1,8 @@
 """TTS 后端 3/3：cosyvoice（ModelScope iic/CosyVoice2-0.5B，完全离线）。
 
+推理逻辑抽取到 ``app/adapters/tts_libs/cosyvoice_engine.py`` 共享单例
+（多引擎 mosaic 适配器复用同一份模型，显存只占一份），本适配器为薄封装。
+
 离线要点：
 1. 联网时下载模型：
    ``python scripts/download_models.py --capability tts --local-dir ./models``
@@ -12,22 +15,14 @@
 """
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 
 from app.adapters.base import (AdapterBase, AdapterError, AdapterSpec,
                                register_adapter)
-from app.vram import ModelSlot, pick_device, unload_model, check_vram
-from app.adapters.tts_mock import write_wav
-
-VOICE_MAP = {
-    "female_warm": "中文女",
-    "female_bright": "中文女",
-    "male_deep": "中文男",
-    "male_warm": "中文男",
-    "narrator": "中文女",
-}
+from app.adapters.tts_libs import cosyvoice_engine
+from app.adapters.tts_libs._base import ProgressFn
+from app.adapters.tts_libs.cosyvoice_engine import VOICE_MAP
 
 
 @register_adapter
@@ -46,61 +41,16 @@ class CosyVoiceTTS(AdapterBase):
         vram_gb=2.0, license="Apache-2.0（CosyVoice2）",
     )
 
-    _slot = ModelSlot("tts_cosyvoice")
-
-    def _load(self):
-        model_dir = str(self.params.get("model_dir") or "").strip()
-        if not model_dir:
-            raise AdapterError(
-                "cosyvoice 需要设置参数 model_dir（本地模型目录）。"
-                "离线下载：python scripts/download_models.py --capability tts --local-dir ./models")
-        if self._slot.is_loaded:
-            return self._slot.model
-        if not check_vram(self.spec.vram_gb):
-            raise AdapterError(f"显存不足：需要约 {self.spec.vram_gb}GB，当前可用不足。"
-                               f"请先在系统页查看显存状态，或切换到不需要 GPU 的后端。")
-
-        def _do_load():
-            import torch
-            from cosyvoice.cli.cosyvoice import CosyVoice2
-            # device 仅用于决策（与原实现一致：不直接传给 CosyVoice2）
-            device = pick_device(self.params.get("device", "auto"), self.spec.vram_gb)
-            try:
-                model = CosyVoice2(model_dir, load_jit=False, load_trt=False)
-            except (torch.cuda.OutOfMemoryError, RuntimeError) as exc:
-                if "out of memory" in str(exc).lower():
-                    # OOM 恢复：重试（CosyVoice2 内部按可用资源调度）
-                    model = CosyVoice2(model_dir, load_jit=False, load_trt=False)
-                else:
-                    raise
-            return model
-
-        return self._slot.load(_do_load)
-
-    def unload(self) -> None:
-        self._slot.unload()
-
-    def run(self, ctx: dict[str, Any], progress=None) -> dict[str, Any]:
+    def run(self, ctx: dict[str, Any], progress: ProgressFn | None = None) -> dict[str, Any]:
         text = str(ctx.get("text", "")).strip()
         if not text:
             raise AdapterError("TTS 文本为空")
         out = Path(ctx["out_path"])
-        if progress:
-            progress("加载 CosyVoice2", 20.0)
-        model = self._load()
         voice = str(ctx.get("voice", "narrator"))
-        voice_map = dict(self.params.get("voice_map") or VOICE_MAP)
-        target = voice_map.get(voice, "中文女")
-        if progress:
-            progress(f"合成音色 {voice}→{target}", 60.0)
-        # CosyVoice2 流式接口：取全部 chunk 拼接
-        chunks = []
-        for result in model.inference_sft(text, target, stream=False):
-            chunks.append(result["tts_speech"])
-        import torch
-        wav = chunks[0] if len(chunks) == 1 else torch.cat(chunks, dim=1)
-        duration = write_wav(out, wav.squeeze(0).tolist())
-        if progress:
-            progress("合成完成", 90.0)
-        return {"path": str(out), "duration": duration,
-                "sample_rate": 24000, "voice": voice}
+        result = cosyvoice_engine.shared_synthesize(
+            text, voice, out, self.params, progress)
+        return {"path": str(out), "duration": result["duration"],
+                "sample_rate": result["sample_rate"], "voice": voice}
+
+    def unload(self) -> None:
+        cosyvoice_engine.engine.unload()

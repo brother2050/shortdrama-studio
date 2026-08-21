@@ -41,9 +41,9 @@ MODEL_CATALOG: dict[str, dict[str, tuple[str, float, str]]] = {
     },
     "tts": {
         "cosyvoice2-0.5b": ("iic/CosyVoice2-0.5B", 5.0,
-                             "推荐：多音色中文配音（适配器 tts_cosyvoice）"),
-        "mosaic-tts": ("brother2050/mosaic", 1.0,
-                        "mosaic 项目 TTS（适配器 tts_mosaic，model=auto）"),
+                             "推荐：多音色中文配音（cosyvoice 直连 / mosaic engine=cosyvoice）"),
+        "chattts": ("pzc163/chatTTS", 2.0,
+                     "对话感中文配音（mosaic engine=chattts，另需 pip install ChatTTS）"),
     },
     "image": {
         "sd15": ("AI-ModelScope/stable-diffusion-v1-5", 5.0, "入门：快、省显存"),
@@ -105,7 +105,11 @@ def print_usage_hint(results: dict[str, Path | None]) -> None:
         if cap == "llm":
             backend, params = "transformers_qwen", {"model_path": str(path)}
         elif cap == "tts":
-            backend, params = "cosyvoice", {"model_dir": str(path)}
+            if "chattts" in str(path):
+                backend, params = "mosaic", {
+                    "engine": "chattts", "chattts_model_dir": str(path)}
+            else:
+                backend, params = "cosyvoice", {"model_dir": str(path)}
         elif cap == "image":
             backend, params = "diffusers", {"model_path": str(path)}
         elif cap == "video":
