@@ -55,10 +55,20 @@ MODEL_CATALOG: dict[str, dict[str, tuple[str, float, str]]] = {
                   "推荐：关键帧质量好（需 ≥10GB 显存）"),
         "flux-schnell": ("AI-ModelScope/FLUX.1-schnell", 12.0,
                           "高质量档，4 步出图（Apache-2.0）"),
+        "qwen-image": ("Qwen/Qwen-Image", 40.0,
+                        "Qwen-Image 文生图：中文语义强（需 ≥24GB 显存）"),
+        "qwen-image-edit": ("Qwen/Qwen-Image-Edit-2509", 40.0,
+                             "多图编辑：角色一致性（参考图锁定外貌）"),
     },
     "video": {
+        "wan2.2-ti2v-5b": ("Wan-AI/Wan2.2-TI2V-5B", 15.0,
+                             "推荐：图生视频（单模型 T2V+I2V，≈8GB 显存）"),
         "wan2.1-1.3b": ("Wan-AI/Wan2.1-T2V-1.3B", 8.0,
-                          "推荐：图生视频（关键帧→动态镜头）"),
+                          "轻量：文生视频/视频续写"),
+        "wan2.2-i2v-a14b": ("Wan-AI/Wan2.2-I2V-A14B", 60.0,
+                             "高质量 I2V（MoE，需 ≥24GB 显存）"),
+        "wan2.1-flf2v-14b": ("Wan-AI/Wan2.1-FLF2V-14B-720P", 60.0,
+                              "首尾帧过渡：镜头间平滑转场（需 ≥24GB 显存）"),
     },
     "asr": {
         "sensevoice-small": ("iic/SenseVoiceSmall", 1.0,
@@ -68,7 +78,7 @@ MODEL_CATALOG: dict[str, dict[str, tuple[str, float, str]]] = {
 
 # 各能力的默认下载档位（不指定 --preset 时使用）
 DEFAULT_PRESET = {"llm": "qwen2.5-1.5b", "tts": "cosyvoice2-0.5b",
-                  "image": "sd15", "video": "wan2.1-1.3b",
+                  "image": "sd15", "video": "wan2.2-ti2v-5b",
                   "asr": "sensevoice-small"}
 
 
@@ -122,8 +132,7 @@ def print_usage_hint(results: dict[str, tuple[str, Path | None]]) -> None:
         elif cap == "image":
             backend, params = "diffsynth", {"model_preset": preset}
         elif cap == "video":
-            repo_id, _, _ = MODEL_CATALOG[cap][preset]
-            backend, params = "diffsynth_wan", {"model_id": repo_id}
+            backend, params = "diffsynth_wan", {"model_preset": preset}
         else:
             backend, params = "funasr", {"model": str(path)}
         print(f"  [{cap}] backend={backend}  params={params}")

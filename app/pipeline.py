@@ -191,9 +191,69 @@ def stage_worldview(project: dict, cancel=None, progress=None) -> list[str]:
     save_assets(project["id"], assets)
     md = pdir / "worldview.md"
     md.write_text(worldview_markdown(assets), "utf-8")
+    outs = [str(md), str(pdir / "project.json")]
+
+    # 角色参考图（视觉一致性基础）：真实图像后端时为每个主要角色生成肖像，
+    # keyframes 阶段作为参考图传入（Qwen-Image-Edit 等编辑模型可锁定外貌）。
+    eff = episode_effective_settings(project)
+    image_conf = get_settings().capability("image", project.get("config") or {})
+    backend = image_conf.get("backend", "auto")
+    if eff.get("character_refs", True) and backend not in ("mock", "auto"):
+        try:
+            outs.extend(_generate_character_refs(project, assets))
+        except Exception as exc:  # 参考图失败不阻塞主线（关键帧退化为纯文生图）
+            logger.warning("角色参考图生成失败（已跳过）：%s", exc)
     if progress:
         progress("世界观完成", 90.0)
-    return [str(md), str(pdir / "project.json")]
+    return outs
+
+
+def _character_ref_dir(project_id: str) -> Path:
+    return paths.project_dir(project_id) / "characters"
+
+
+def _generate_character_refs(project: dict, assets: dict) -> list[str]:
+    """为每个主要角色生成肖像参考图（characters/NAME.png，跨集复用）。"""
+    image = resolve_adapter("image", project)
+    eff = episode_effective_settings(project)
+    geo = output_geometry()
+    cdir = _character_ref_dir(project["id"])
+    outs: list[str] = []
+    for i, ch in enumerate(assets.get("characters", []), 1):
+        name = str(ch.get("name") or f"角色{i}").strip()
+        out = cdir / f"{i:02d}-{_safe_name(name)}.png"
+        if out.exists():  # 已有参考图则复用（跨集一致性）
+            outs.append(str(out))
+            continue
+        prompt = (f"角色定妆照：{name}（{ch.get('role', '')}）。"
+                  f"外貌：{ch.get('appearance', '')}。"
+                  f"正面半身像，视线直视镜头，中性表情，纯色背景，"
+                  f"细节清晰。风格：{eff.get('style', '')}")
+        res = image.run({"prompt": prompt, "out_path": out,
+                         "width": geo["width"], "height": geo["height"],
+                         "label": f"REF-{name}"})
+        outs.append(res["path"])
+    return outs
+
+
+def _safe_name(name: str) -> str:
+    """文件名安全化（保留中英文数字，其余替换为下划线）。"""
+    import re as _re
+    return _re.sub(r"[^\w\u4e00-\u9fff-]+", "_", name).strip("_") or "char"
+
+
+def character_ref_map(project_id: str) -> dict[str, str]:
+    """角色名 → 参考图路径（不存在参考图时为空字典）。"""
+    cdir = _character_ref_dir(project_id)
+    result: dict[str, str] = {}
+    if not cdir.exists():
+        return result
+    for f in sorted(cdir.glob("*.png")):
+        # 文件名格式 "01-角色名.png"：去掉序号前缀取角色名
+        stem = f.stem
+        name = stem.split("-", 1)[1] if "-" in stem else stem
+        result[name] = str(f)
+    return result
 
 
 def stage_script(project: dict, episode: dict,
@@ -314,6 +374,9 @@ def stage_keyframes(project: dict, episode: dict,
     eff = episode_effective_settings(project)
     geo = output_geometry()
     image = resolve_adapter("image", project)
+    # 角色参考图（worldview 阶段生成）：出场角色对应参考图传给图像后端，
+    # qwen-image-edit 等编辑模型据此锁定外貌，实现跨镜头/跨集角色一致性。
+    ref_map = character_ref_map(project["id"]) if eff.get("character_refs", True) else {}
     outs = []
     shots = sb["shots"]
     for i, s in enumerate(shots):
@@ -323,9 +386,14 @@ def stage_keyframes(project: dict, episode: dict,
             progress(f"关键帧 镜头{s['idx']}/{len(shots)}", 5 + 85 * (i + 1) / len(shots))
         sd = _shot_dir(project["id"], episode["idx"], s["idx"])
         prompt = lock_prompt(s, assets, eff.get("style", ""))
-        res = image.run({"prompt": prompt, "out_path": sd / "keyframe.png",
-                         "width": geo["width"], "height": geo["height"],
-                         "label": f"E{episode['idx']:02d}-S{s['idx']:03d}"})
+        ctx = {"prompt": prompt, "out_path": sd / "keyframe.png",
+               "width": geo["width"], "height": geo["height"],
+               "label": f"E{episode['idx']:02d}-S{s['idx']:03d}"}
+        refs = [ref_map[n] for n in s.get("characters", [])
+                if n in ref_map and Path(ref_map[n]).exists()]
+        if refs:
+            ctx["ref_images"] = refs
+        res = image.run(ctx)
         outs.append(res["path"])
     if progress:
         progress("关键帧完成", 92.0)
@@ -343,6 +411,8 @@ def stage_clips(project: dict, episode: dict,
     durations = load_durations(project["id"], episode["idx"])
     outs = []
     shots = sb["shots"]
+    # 镜头过渡（flf2v）：当前镜头首帧 + 下一镜头关键帧尾帧 → 平滑转场片段
+    transition = eff.get("transition", "none")
     for i, s in enumerate(shots):
         if cancel:
             cancel.should_cancel()
@@ -353,11 +423,16 @@ def stage_clips(project: dict, episode: dict,
         if not kf.exists():
             raise PipelineError(f"镜头 {s['idx']} 缺少关键帧，请先生成 keyframes 阶段")
         duration = shot_seconds(s, eff, durations)
-        res = video.run({"image_path": str(kf), "out_path": sd / "clip.mp4",
-                         "duration": duration, "prompt": s.get("description", ""),
-                         "motion": s.get("motion", "auto"),
-                         "fps": geo["fps"], "width": geo["width"],
-                         "height": geo["height"]})
+        ctx = {"image_path": str(kf), "out_path": sd / "clip.mp4",
+               "duration": duration, "prompt": s.get("description", ""),
+               "motion": s.get("motion", "auto"), "fps": geo["fps"],
+               "width": geo["width"], "height": geo["height"]}
+        if transition == "flf2v" and i + 1 < len(shots):
+            next_kf = _shot_dir(project["id"], episode["idx"],
+                                shots[i + 1]["idx"]) / "keyframe.png"
+            if next_kf.exists():
+                ctx["end_image_path"] = str(next_kf)
+        res = video.run(ctx)
         outs.append(res["path"])
     if progress:
         progress("镜头片段完成", 92.0)

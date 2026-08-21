@@ -27,9 +27,9 @@ AI：已强制重跑分镜阶段，后续阶段可继续生成。
 AI：已重新执行「合成」阶段，第 1 集成片就绪：episode.mp4
 ```
 
-- **完全离线**：核心零云依赖；接入 ModelScope 本地模型（Qwen / CosyVoice2 / FunASR / Wan2.1 / SD / FLUX）后全栈离线生产。
+- **完全离线**：核心零云依赖；接入 ModelScope 本地模型（Qwen / CosyVoice2 / FunASR / Wan2.2 / Qwen-Image / SD / FLUX）后全栈离线生产。
 - **任何环境可跑**：无 GPU / 无模型时自动降级到内置 mock 后端，全流程依旧可以演示与测试出片（ffmpeg Ken Burns 运镜）。
-- **连续性保证**：角色资产（人设/外貌/音色）跨集复用，前情摘要滚动传递，关键帧提示词自动锁定角色外貌。
+- **连续性保证**：角色资产（人设/外貌/音色）跨集复用，前情摘要滚动传递，关键帧提示词自动锁定角色外貌；角色参考图（Qwen-Image-Edit）与首尾帧镜头过渡（Wan FLF2V）进一步提升视觉连贯。
 - **手工重试哲学**：代码中**没有任何自动重试**；失败即停、如实上报，由你决定何时、从哪个阶段重试。
 - **人性化可读**：所有产物落盘为 Markdown / JSON / SRT / 媒体文件，目录结构一眼可懂。
 
@@ -56,8 +56,8 @@ http://127.0.0.1:8320
 | 2 | script 剧本 | `script.md` `script.json` | LLM 同上 |
 | 3 | storyboard 分镜 | `storyboard.json` | LLM 同上 |
 | 4 | voiceover 配音 | `shots/*/vo.wav` | TTS：mock / cosyvoice / chattts / gpt_sovits / fish_speech |
-| 5 | keyframes 关键帧 | `shots/*/keyframe.png` | 图像：mock / diffsynth(SD/SDXL/FLUX) |
-| 6 | clips 镜头片段 | `shots/*/clip.mp4` | 视频：kenburns(ffmpeg，默认) / diffsynth_wan(Wan2.1) |
+| 5 | keyframes 关键帧 | `shots/*/keyframe.png` | 图像：mock / diffsynth(SD/SDXL/FLUX/Qwen-Image) |
+| 6 | clips 镜头片段 | `shots/*/clip.mp4` | 视频：kenburns(ffmpeg，默认) / diffsynth_wan(Wan2.2-TI2V/FLF2V) |
 | 7 | subtitles 字幕 | `episode.srt` | ASR：script(默认) / funasr(SenseVoice/Paraformer) |
 | 8 | compose 合成 | `episode.mp4` | ffmpeg |
 

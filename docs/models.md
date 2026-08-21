@@ -16,9 +16,9 @@
 | tts | `gpt_sovits` | AIDub/GPT-SoVITS | 3GB | MIT | 声音克隆（参考音频） |
 | tts | `fish_speech` | fishaudio/fish-speech-1.5 | 4GB | CC-BY-NC-SA | 多语言配音/克隆 |
 | image | `mock` | 内置 PNG 生成 | 0 | MIT | 零依赖兜底（色块构图） |
-| image | `diffsynth` | SD/SDXL/FLUX | 4~12GB | 各模型许可 | DiffSynth-Studio 关键帧文生图 |
+| image | `diffsynth` | SD/SDXL/FLUX/Qwen-Image | 4~24GB | 各模型许可 | DiffSynth-Studio 关键帧文生图/编辑 |
 | video | `kenburns` | ffmpeg | 0 | - | 关键帧 Ken Burns 运镜（默认，零依赖） |
-| video | `diffsynth_wan` | Wan-AI/Wan2.1-T2V-1.3B | 8GB+ | Apache-2.0 | DiffSynth-Studio 图生视频 |
+| video | `diffsynth_wan` | Wan2.2-TI2V-5B 等 | 8~24GB | Apache-2.0 | DiffSynth-Studio 图生视频/首尾帧过渡 |
 | asr | `script` | 剧本内置 | 0 | - | 直接用剧本台词做字幕对齐（默认） |
 | asr | `funasr` | iic/SenseVoiceSmall | 1GB | FunASR 许可 | 语音识别，字幕时长校对 |
 
@@ -46,12 +46,33 @@ python -m app    # 打开 http://127.0.0.1:8320
 | llm | `max_new_tokens` | 1024 | 单次生成上限 |
 | llm | `temperature` | 0.8 | 采样温度 |
 | tts | `voice_map` | 内置映射 | 角色 → 音色 |
-| image | `steps` / `guidance` | 28 / 7.0 | FLUX.1-schnell 建议 4 / 3.5 |
-| video | `num_frames` / `fps` | 81 / 16 | ≈5 秒镜头 |
+| image | `model_preset` | sd15 | sd15 / sdxl / flux-schnell / qwen-image / qwen-image-edit |
+| image | `steps` / `guidance` | 28 / 7.0 | FLUX.1-schnell 建议 4 / 3.5；Qwen 建议 40 |
+| video | `model_preset` | wan2.2-ti2v-5b | wan2.2-ti2v-5b / wan2.1-t2v-1.3b / wan2.2-i2v-a14b / wan2.1-flf2v-14b |
+| video | `num_frames` / `fps` | 81 / 15 | ≈5.4 秒镜头（Wan 官方帧率 15） |
 | 全局 | `shots_per_episode` | 4 | 每集镜头数 |
 | 全局 | `target_clip_seconds` | 5.0 | 单镜头目标时长（配音更长则顺延） |
 | 全局 | `style` | 电影感, 自然光… | 全局风格提示词（锁视觉一致性） |
+| 全局 | `character_refs` | true | 角色参考图：worldview 生成肖像，关键帧锁定外貌 |
+| 全局 | `transition` | none | 镜头过渡：none / flf2v（首尾帧转场） |
 | 全局 | `video_output` | 1280×720@24 | 成片画幅 |
+
+## 视觉一致性（角色参考图 + 镜头过渡）
+
+对照 DiffSynth-Studio 官方 examples 引入两项视觉增强：
+
+**角色参考图（character_refs，默认开）**
+- worldview 阶段为每个主要角色生成定妆照（`projects/<id>/characters/`，跨集复用）；
+- keyframes 阶段把出场角色的参考图作为 `ref_images` 传给图像后端；
+- 搭配 `model_preset=qwen-image-edit`（Qwen-Image-Edit-2509 多图编辑）时，
+  参考图经 `edit_image` 列表输入模型，锁定角色外貌 → 跨镜头/跨集角色一致；
+- mock 后端自动跳过参考图生成（快速演示路径不受影响）。
+
+**镜头过渡（transition=flf2v）**
+- clips 阶段把下一镜头的关键帧作为尾帧（`end_image_path`）传给视频后端；
+- 搭配 `model_preset=wan2.1-flf2v-14b`（Wan2.1-FLF2V-14B-720P）时，
+  以「当前镜首帧 + 下一镜尾帧」生成平滑转场片段（sigma_shift=16）；
+- 默认 none（关闭），对话中说「开启镜头过渡」即可启用。
 
 ## TTS 四后端（全部本地库推理，无 HTTP 服务）
 

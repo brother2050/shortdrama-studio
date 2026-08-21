@@ -75,6 +75,20 @@ async function load(root) {
     input.addEventListener("change", () => { obj[key] = Number(input.value); });
     return el("label.row.small", {}, `${label} `, input);
   };
+  const toggle = (obj, key, label) => {
+    const input = el("input", { type: "checkbox" });
+    input.checked = !!obj[key];
+    input.addEventListener("change", () => { obj[key] = input.checked; });
+    return el("label.row.small", {}, `${label} `, input);
+  };
+  const select = (obj, key, label, options) => {
+    const sel = el("select", {},
+      ...options.map(([v, name]) =>
+        el("option", { value: v, selected: obj[key] === v ? "" : null }, name)));
+    sel.value = obj[key] ?? options[0][0];
+    sel.addEventListener("change", () => { obj[key] = sel.value; });
+    return el("label.row.small", {}, `${label} `, sel);
+  };
 
   root.append(
     el("h2", {}, "生成设置（即时保存到 data/config.json，可直接手工编辑）"),
@@ -87,7 +101,13 @@ async function load(root) {
       el("h3", {}, "分集默认值（创建项目时可覆盖）"),
       el("div.row", {},
         num(ed, "shots_per_episode", "每集镜头数"),
-        num(ed, "target_clip_seconds", "单镜头目标秒", 0.5)),
+        num(ed, "target_clip_seconds", "单镜头目标秒", 0.5),
+        select(ed, "transition", "镜头过渡",
+          [["none", "关闭"], ["flf2v", "首尾帧转场（需 flf2v 模型）"]]),
+        toggle(ed, "character_refs", "角色参考图（锁定外貌）")),
+      el("div.muted.small", { style: "margin-top:6px" },
+        "镜头过渡需 video 后端选 diffsynth_wan 且 model_preset=wan2.1-flf2v-14b；",
+        "角色参考图搭配 image 后端 model_preset=qwen-image-edit 效果最佳。"),
       (() => {
         const ta = el("textarea", { style: "width:100%;margin-top:8px" }, ed.style);
         ta.addEventListener("change", () => { ed.style = ta.value; });

@@ -166,17 +166,19 @@ data/
 | 后端 | 依赖 | 模型（ModelScope id） | 显存 | 许可 | 备注 |
 |---|---|---|---:|---|---|
 | `mock`（默认兜底） | 无（纯 stdlib PNG 编码器） | - | 0 | - | 按分镜提示词哈希生成电影感占位卡（场景色 + 标题 + 镜头号），可离线全链路演示 |
-| `diffsynth` | torch+diffsynth | `AI-ModelScope/stable-diffusion-v1-5`（4–6GB）· `stabilityai/stable-diffusion-xl-base-1.0`（6–10GB）· `AI-ModelScope/FLUX.1-schnell`（8–12GB） | 4–12GB | 各模型许可 | DiffSynth-Studio 关键帧文生图，本地目录加载 |
+| `diffsynth` | torch+diffsynth | 预设 `sd15`(4–6GB)·`sdxl`(6–10GB)·`flux-schnell`(8–12GB)·`qwen-image`(≈24GB)·`qwen-image-edit`(≈24GB) | 4–24GB | 各模型许可 | DiffSynth-Studio 文生图/多图编辑；`qwen-image-edit` 支持角色参考图锁定外貌 |
 
-参数：`model_path`、`width`(1280)、`height`(720)、`steps`(28)、`guidance`(7.0)、`negative_prompt`(默认通用负面词)。
+参数：`model_preset`、`width`(1280)、`height`(720)、`steps`(28) 、`guidance`(7.0)、`negative_prompt`。
+关键帧阶段可携带 `ref_images`（角色定妆照）→ `qwen-image-edit` 经 `edit_image` 列表输入，实现跨镜头角色一致性（对照官方 Qwen-Image-Edit-2509 example）。
 
 ### 5.4 视频（镜头片段）
 | 后端 | 依赖 | 模型 | 显存 | 许可 | 备注 |
 |---|---|---|---:|---|---|
 | `kenburns`（默认） | ffmpeg 二进制 | - | 0 | - | 关键帧 + zoompan 运镜（推/拉/摇）+ 时长对齐配音，**永远可用**，无 GPU 也出片 |
-| `diffsynth_wan` | torch+diffsynth | `Wan-AI/Wan2.1-T2V-1.3B`(≈8GB) | 8GB+ | Apache-2.0 | DiffSynth-Studio 图生视频，保持首帧一致 |
+| `diffsynth_wan` | torch+diffsynth | 预设 `wan2.2-ti2v-5b`(≈8GB,默认)·`wan2.1-t2v-1.3b`·`wan2.2-i2v-a14b`(≈24GB)·`wan2.1-flf2v-14b`(≈24GB) | 8–24GB | Apache-2.0 | DiffSynth-Studio 图生视频（`input_image` 首帧一致）；FLF2V 预设支持首尾帧过渡（`end_image`+`sigma_shift=16`） |
 
-参数：`motion`(auto/in/out/pan)、`fps`(24)、`duration_cap`(10s，单镜头上限)、`model_path`、`num_frames`(81)。
+参数：`model_preset`、`num_frames`(81)、`fps`(15, Wan 官方标准)、`steps`(30)、`guidance`(6.0)、`negative_prompt`。
+镜头过渡（`transition=flf2v`）：clips 阶段传下一镜关键帧为 `end_image_path`，FLF2V 预设自动生成平滑转场片段。
 
 ### 5.5 ASR/字幕对齐
 | 后端 | 依赖 | 模型 | 显存 | 备注 |

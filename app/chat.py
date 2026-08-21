@@ -46,11 +46,15 @@ _GENRES = {"都市": "都市情感", "爱情": "爱情", "悬疑": "悬疑", "�
 _BACKEND_HINTS = [
     ("cosyvoice", "tts", "cosyvoice"), ("chattts", "tts", "chattts"),
     ("sovits", "tts", "gpt_sovits"), ("fish", "tts", "fish_speech"),
-    ("modelscope", "llm", "modelscope"), ("qwen", "llm", "modelscope"),
+    ("modelscope", "llm", "modelscope"), ("qwen2.5", "llm", "modelscope"),
     ("transformers", "llm", "transformers_qwen"),
+    ("diffsynth_wan", "video", "diffsynth_wan"),
+    ("ti2v", "video", "diffsynth_wan"), ("flf2v", "video", "diffsynth_wan"),
     ("wan", "video", "diffsynth_wan"), ("kenburns", "video", "kenburns"),
+    ("qwen-image", "image", "diffsynth"), ("qwen image", "image", "diffsynth"),
     ("diffsynth", "image", "diffsynth"), ("flux", "image", "diffsynth"),
-    ("sdxl", "image", "diffsynth"), ("funasr", "asr", "funasr"),
+    ("sdxl", "image", "diffsynth"), ("sd15", "image", "diffsynth"),
+    ("funasr", "asr", "funasr"), ("qwen", "llm", "modelscope"),
 ]
 
 INTENTS = ("create_project", "generate_episode", "regenerate_stage",
@@ -93,9 +97,21 @@ def parse_intent_rules(message: str) -> dict[str, Any]:
         return {"intent": "list_projects"}
     backend = _match_backend(msg)
     m_shots = re.search(r"(\d+)\s*个?(?:个)?镜头|镜头数[:：]?\s*(\d+)|每集\s*(\d+)", msg)
-    if backend or m_shots:
+    m_trans = None
+    if re.search(r"关闭?过渡|不要过渡|过渡[:：]\s*none", msg):
+        m_trans = "none"
+    elif re.search(r"首尾帧|过渡|转场", msg):
+        m_trans = "flf2v"
+    m_refs = None
+    if re.search(r"关闭?参考图|不要参考图|不锁定?(?:角色)?外貌", msg):
+        m_refs = False
+    elif re.search(r"参考图|锁定外貌|角色一致", msg):
+        m_refs = True
+    if backend or m_shots or m_trans or (m_refs is not None):
         return {"intent": "set_preferences",
-                "backend": backend, "shots": _first_int(m_shots) if m_shots else None}
+                "backend": backend,
+                "shots": _first_int(m_shots) if m_shots else None,
+                "transition": m_trans, "character_refs": m_refs}
     return {"intent": "smalltalk"}
 
 
@@ -367,6 +383,8 @@ def _execute(intent: dict, message: str, project_id: str | None):
         project = _pick_project(project_id)
         backend = intent.get("backend")
         shots = intent.get("shots")
+        transition = intent.get("transition")
+        char_refs = intent.get("character_refs")
         if backend:
             cap, bname = backend
             if bname not in registry.names(cap):
@@ -378,29 +396,43 @@ def _execute(intent: dict, message: str, project_id: str | None):
                 config.setdefault("capabilities", {})[cap] = {"backend": bname, "params": {}}
             if shots:
                 config.setdefault("episode_defaults", {})["shots_per_episode"] = int(shots)
-            if backend or shots:
+            if transition:
+                config.setdefault("episode_defaults", {})["transition"] = transition
+            if char_refs is not None:
+                config.setdefault("episode_defaults", {})["character_refs"] = bool(char_refs)
+            if backend or shots or transition or (char_refs is not None):
                 from app.services import patch_project
                 patch_project(project["id"], {"config": config})
                 changed = ([f"{cap}→{bname}"] if backend else []) + \
-                          ([f"每集 {shots} 镜头"] if shots else [])
+                          ([f"每集 {shots} 镜头"] if shots else []) + \
+                          ([f"镜头过渡 {transition}"] if transition else []) + \
+                          ([f"角色参考图 {'开' if char_refs else '关'}"]
+                           if char_refs is not None else [])
                 return (f"已更新本项目偏好：{'；'.join(changed)}（仅对本项目生效）。",
                         [_ok("set_preferences", "；".join(changed),
                              project_id=project["id"])], project["id"])
-            return ("没有识别到可设置的偏好，试试「用 cosyvoice 配音」或「每集 6 个镜头」。",
-                    [], project["id"])
+            return ("没有识别到可设置的偏好，试试「用 cosyvoice 配音」「每集 6 个镜头」"
+                    "或「开启镜头过渡」。", [], project["id"])
         # 无项目：写入全局默认设置（之后创建的项目自动生效）
         partial: dict = {}
         if backend:
             partial.setdefault("capabilities", {})[cap] = {"backend": bname, "params": {}}
         if shots:
             partial.setdefault("episode_defaults", {})["shots_per_episode"] = int(shots)
+        if transition:
+            partial.setdefault("episode_defaults", {})["transition"] = transition
+        if char_refs is not None:
+            partial.setdefault("episode_defaults", {})["character_refs"] = bool(char_refs)
         if not partial:
             return ("还没有项目，偏好可以先存为全局默认：说「用 cosyvoice 配音」"
                     "或「每集 6 个镜头」。", [], project_id)
         from app.services import update_settings
         update_settings(partial)
         changed = ([f"{cap}→{bname}"] if backend else []) + \
-                  ([f"每集 {shots} 镜头"] if shots else [])
+                  ([f"每集 {shots} 镜头"] if shots else []) + \
+                  ([f"镜头过渡 {transition}"] if transition else []) + \
+                  ([f"角色参考图 {'开' if char_refs else '关'}"]
+                   if char_refs is not None else [])
         return (f"已保存为全局默认偏好：{'；'.join(changed)}。"
                 "之后创建的项目自动生效；已有项目可在项目设置中单独调整。",
                 [_ok("set_preferences", "全局默认：" + "；".join(changed))], project_id)

@@ -28,6 +28,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "shots_per_episode": 4,          # 每集镜头数
         "target_clip_seconds": 5.0,      # 单镜头目标时长（配音更长则顺延）
         "style": "电影感, 自然光, 高清, 浅景深",  # 全局风格提示词（锁视觉一致性）
+        "character_refs": True,          # 角色参考图：世界观阶段生成肖像，关键帧锁定外貌
+        "transition": "none",            # 镜头过渡：none / flf2v（首尾帧转场，需 diffsynth_wan flf2v 预设）
     },
 }
 
@@ -122,6 +124,10 @@ class Settings:
                 raise SettingsError("episode_defaults.target_clip_seconds 必须是 1.0-60.0 的数")
         if "style" in ed and not isinstance(ed["style"], str):
             raise SettingsError("episode_defaults.style 必须是字符串")
+        if "character_refs" in ed and not isinstance(ed["character_refs"], bool):
+            raise SettingsError("episode_defaults.character_refs 必须是布尔值")
+        if "transition" in ed and ed["transition"] not in ("none", "flf2v"):
+            raise SettingsError("episode_defaults.transition 可选值: none / flf2v")
         return data
 
     # -- 便捷访问 -----------------------------------------------------------
