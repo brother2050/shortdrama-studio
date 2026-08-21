@@ -15,6 +15,7 @@ from typing import Any
 
 from app.adapters.base import (AdapterBase, AdapterError, AdapterSpec,
                                ProgressFn, register_adapter)
+from app.adapters.model_paths import ModelPathError, resolve_model_path
 from app.adapters.tts_mock import write_wav
 from app.vram import ModelSlot, check_vram, pick_device
 
@@ -37,9 +38,11 @@ class CosyVoiceTTS(AdapterBase):
         description="阿里 CosyVoice2-0.5B（iic/CosyVoice2-0.5B），Flow Matching 架构，"
                     "多音色中文音质最佳；完全离线。",
         priority=5, requires=["cosyvoice"],
-        default_params={"model_dir": "", "device": "auto", "voice_map": VOICE_MAP},
+        default_params={"model_dir": "models/tts/cosyvoice2-0.5b",
+                        "device": "auto", "voice_map": VOICE_MAP},
         param_docs={
-            "model_dir": "本地模型目录（scripts/download_models.py 下载后的路径）",
+            "model_dir": "本地模型目录：预设名（cosyvoice2-0.5b）或 "
+                         "models/tts/<预设名>（相对项目根，也可绝对路径）",
             "device": "推理设备 auto/cpu/cuda",
             "voice_map": "角色音色 id → CosyVoice 说话人映射",
         },
@@ -51,17 +54,20 @@ class CosyVoiceTTS(AdapterBase):
     def _load(self, params: dict[str, Any]):
         if self._slot.is_loaded:
             return self._slot.model
-        model_dir = str(params.get("model_dir") or "").strip()
-        if not model_dir:
+        try:
+            model_dir = resolve_model_path(
+                str(params.get("model_dir") or ""), "tts")
+        except ModelPathError as exc:
+            raise AdapterError(str(exc)) from exc
+        if model_dir is None:
             raise AdapterError(
                 "CosyVoice2 需要设置参数 model_dir（本地模型目录）。"
-                "离线下载：python scripts/download_models.py --capability tts --local-dir ./models")
-        if not Path(model_dir).exists():
-            raise AdapterError(f"模型目录不存在: {model_dir}")
+                "离线下载：python scripts/download_models.py --capability tts")
         if not check_vram(VRAM_GB):
             raise AdapterError(f"显存不足：CosyVoice2 需要约 {VRAM_GB}GB，"
                                "请到「系统」页释放显存或改用 CPU。")
         pick_device(str(params.get("device") or "auto"), VRAM_GB)  # 决策+警告
+        model_dir = str(model_dir)
 
         def _do_load():
             from cosyvoice.cli.cosyvoice import CosyVoice2  # 惰性导入（重依赖）

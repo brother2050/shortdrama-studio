@@ -31,13 +31,15 @@ python -m app                        # 打开 http://127.0.0.1:8320
 
 ```bash
 pip install -r requirements.txt -r requirements-models.txt
-python scripts/download_models.py        # 首次联网下载（或离线拷贝 models/ 目录）
+python scripts/download_models.py        # 下载到项目根 models/（首次联网）
 # 断网后：
 python -m app
-# 设置页把 llm/tts/image/video 换成本地后端并填 model_path
+# 设置页每个能力选「模型预设」：backend + 参数 JSON 自动填充（可手动微调）
 ```
 
-离线迁移：把整个 `models/` 目录拷贝到目标机器，设置页 `model_path` 指向即可。
+离线迁移：把整个项目根 `models/` 目录拷贝到目标机器同位置即可——
+设置里的路径都是 `models/...` 相对路径（相对项目根解析，与 cwd 无关），
+换机器不用改配置；也可用环境变量 `STUDIO_MODELS_DIR` 指向移动盘上的模型目录。
 
 ## 数据目录
 

@@ -67,11 +67,13 @@ http://127.0.0.1:8320
 
 ```bash
 pip install -r requirements-models.txt      # 按能力分组，可只装需要的组
-python scripts/download_models.py --capability llm --local-dir ./models   # ModelScope 离线下载
-# 然后在「设置」页选择后端并填本地模型路径，或保持 auto 自动探测
+python scripts/download_models.py --capability llm   # 下载到项目根 models/
+# 然后在「设置」页用「模型预设」下拉自动填充参数（JSON 可再手动微调）
 ```
 
-模型选型表（显存/许可/下载命令）见 [docs/models.md](docs/models.md)，离线部署见 [docs/offline.md](docs/offline.md)。
+所有离线模型统一存放在**项目根 `models/`**（布局 `models/<能力>/<预设名>/`），
+预设注册表 / 下载脚本 / 设置页下拉共用同一数据源，详见 [docs/models.md](docs/models.md)，
+离线部署见 [docs/offline.md](docs/offline.md)。
 
 ## 目录结构
 

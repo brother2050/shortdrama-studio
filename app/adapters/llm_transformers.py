@@ -1,8 +1,11 @@
 """LLM 后端 2/3：transformers_qwen（ModelScope 离线模型）。
 
 离线要点（见 docs/offline.md）：
-1. 联网时 ``python scripts/download_models.py --capability llm --local-dir ./models``
-2. 本后端 ``params.model_path`` 指向本地目录（或已缓存到 ~/.cache 的模型 id）；
+1. 联网时 ``python scripts/download_models.py --capability llm``
+   （模型统一下载到项目根 ``models/llm/<预设名>/``）；
+2. 本后端 ``params.model_path`` 支持三种写法（app/adapters/model_paths.py
+   统一解析）：预设名（如 ``qwen2.5-1.5b``）、相对项目根路径
+   （如 ``models/llm/qwen2.5-1.5b``）、绝对路径（含 ``~``）；
 3. ``from_pretrained(local_dir)`` 全程无外网请求。
 
 重依赖 torch/transformers 在 run() 内惰性导入。
@@ -13,6 +16,7 @@ from typing import Any
 
 from app.adapters.base import (AdapterBase, AdapterError, AdapterSpec,
                                register_adapter)
+from app.adapters.model_paths import ModelPathError, resolve_model_path
 from app.vram import ModelSlot, pick_device, unload_model, check_vram
 
 
@@ -24,13 +28,14 @@ class TransformersQwenLLM(AdapterBase):
                     "完全离线推理，CPU 可跑小参数量版本。",
         priority=20, requires=["torch", "transformers"],
         default_params={
-            "model_path": "",          # 本地模型目录；空则报错并给出下载指引
+            "model_path": "models/llm/qwen2.5-1.5b",  # 预设名/相对项目根/绝对路径均可
             "device": "auto",          # auto / cpu / cuda
             "max_new_tokens": 1024,
             "temperature": 0.8,
         },
         param_docs={
-            "model_path": "本地模型目录（scripts/download_models.py 下载后的路径）",
+            "model_path": "本地模型目录：预设名（qwen2.5-1.5b）或 models/llm/<预设名>"
+                          "（相对项目根，也可用绝对路径）",
             "device": "推理设备 auto/cpu/cuda，auto 自动探测",
             "max_new_tokens": "单次生成最大 token 数",
             "temperature": "采样温度（0~1.5，越大越发散）",
@@ -40,12 +45,20 @@ class TransformersQwenLLM(AdapterBase):
 
     _slot = ModelSlot("llm_transformers", capability="llm")
 
-    def _load(self):
-        path = str(self.params.get("model_path") or "").strip()
-        if not path:
+    def _resolve_path(self) -> str:
+        raw = str(self.params.get("model_path") or "").strip()
+        try:
+            path = resolve_model_path(raw, "llm")
+        except ModelPathError as exc:
+            raise AdapterError(str(exc)) from exc
+        if path is None:
             raise AdapterError(
                 "transformers_qwen 需要设置参数 model_path（本地模型目录）。"
-                "离线下载：python scripts/download_models.py --capability llm --local-dir ./models")
+                "离线下载：python scripts/download_models.py --capability llm")
+        return str(path)
+
+    def _load(self):
+        path = self._resolve_path()
         if self._slot.is_loaded:
             return self._slot.model
         if not check_vram(self.spec.vram_gb):

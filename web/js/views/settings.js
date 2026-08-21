@@ -1,15 +1,41 @@
-/* 设置视图：能力后端选择 + 参数（JSON）+ 画幅 + 分集默认值。 */
+/* 设置视图：能力后端选择 + 模型预设（自动填充 JSON）+ 参数 + 画幅 + 分集默认值。 */
 import { api } from "../api.js";
 import { el, toast } from "../ui.js";
 
+/** 当前配置对应的模型预设名（匹配不上 = 自定义）。 */
+function detectPresetName(conf, presets) {
+  for (const p of presets) {
+    if (conf.backend !== p.backend) continue;
+    const key = ["model_preset", "model_id", "model_dir",
+                 "checkpoint_dir", "model"].find((k) => p.params[k] != null);
+    if (!key || conf.params?.[key] === p.params[key]) return p.name;
+  }
+  return "custom";
+}
+
 async function load(root) {
-  const [settings, backends] = await Promise.all([api.settings(), api.backends()]);
+  const [settings, backends, catalog] = await Promise.all([
+    api.settings(), api.backends(), api.modelsCatalog()]);
   root.innerHTML = "";
   const draft = structuredClone(settings);
+
+  /* 模型存放说明（统一项目根 models/） */
+  root.append(el("div.card", {},
+    el("h3", {}, "模型目录"),
+    el("div.muted.small", {},
+      `所有离线模型统一存放在项目根目录：${catalog.models_root}`,
+      el("div", { style: "margin-top:4px" },
+        "布局：models/<能力>/<预设名>/（共享组件在 models/<能力>/_shared/）。"),
+      el("div", { style: "margin-top:4px" },
+        "下载：python scripts/download_models.py --capability <能力> --preset <预设名>",
+        "；选择下方「模型预设」后参数 JSON 自动生成，可手动微调。"))));
 
   const capCards = [];
   for (const [cap, specs] of Object.entries(backends)) {
     const conf = draft.capabilities[cap];
+    const presets = catalog.capabilities[cap] || [];
+
+    /* 后端下拉 */
     const sel = el("select", {},
       el("option", { value: "auto" }, "auto（自动选择可用后端）"),
       ...specs.map((s) => el("option", {
@@ -18,17 +44,18 @@ async function load(root) {
         disabled: s.available === false ? "" : null },
         `${s.name} — ${s.display_name}${s.available === false ? "（未安装依赖）" : " ✓"}`)));
     sel.value = conf.backend;
-    sel.addEventListener("change", () => {
-      conf.backend = sel.value;
-      const newSpec = specs.find((s) => s.name === sel.value);
-      if (newSpec?.default_params && Object.keys(newSpec.default_params).length) {
-        const merged = { ...newSpec.default_params, ...(conf.params || {}) };
-        conf.params = merged;
-        paramsArea.value = JSON.stringify(merged, null, 2);
-      }
-    });
 
-    const spec = specs.find((s) => s.name === sel.value);
+    /* 模型预设下拉：选中即自动填充 backend + params JSON */
+    const presetSel = el("select", { title: "选择模型预设，自动生成参数 JSON" },
+      el("option", { value: "custom" }, "自定义（手动编辑参数 JSON）"),
+      ...presets.map((p) => el("option", {
+        value: p.name,
+        selected: detectPresetName(conf, presets) === p.name ? "" : null },
+        `${p.name}${p.default ? "（推荐）" : ""} — ${p.desc}`
+        + `${p.downloaded ? " ✓已下载" : `（未下载，约 ${p.size_gb}GB）`}`)));
+    presetSel.value = detectPresetName(conf, presets);
+
+    /* 参数 JSON 编辑框 */
     const paramsArea = el("textarea.json", {
       placeholder: "{}（留空使用后端默认参数）" });
     paramsArea.value = JSON.stringify(conf.params || {}, null, 2);
@@ -56,7 +83,33 @@ async function load(root) {
           el("span.badge", {}, `显存需求: ${s.vram_gb}GB`)));
       }
     };
-    sel.addEventListener("change", updateDocs);
+
+    /* 预设选择 → 自动填充（backend + 完整参数 JSON），可再手动微调 */
+    presetSel.addEventListener("change", () => {
+      const name = presetSel.value;
+      if (name === "custom") return;
+      const p = presets.find((x) => x.name === name);
+      if (!p) return;
+      conf.backend = p.backend;
+      conf.params = { ...p.params };
+      sel.value = p.backend;
+      paramsArea.value = JSON.stringify(conf.params, null, 2);
+      updateDocs();
+      toast(`已选预设 ${name}：${p.downloaded ? "本地已下载，完全离线可用" : "未下载，首次使用将自动下载（也可先运行下载脚本）"}`);
+    });
+
+    /* 后端切换 → 预设匹配状态刷新 + 参数模板提示 */
+    sel.addEventListener("change", () => {
+      conf.backend = sel.value;
+      const newSpec = specs.find((s) => s.name === sel.value);
+      presetSel.value = detectPresetName(conf, presets);
+      if (newSpec?.default_params && Object.keys(newSpec.default_params).length) {
+        const merged = { ...newSpec.default_params, ...(conf.params || {}) };
+        conf.params = merged;
+        paramsArea.value = JSON.stringify(merged, null, 2);
+      }
+      updateDocs();
+    });
     updateDocs();
 
     capCards.push(el("div.card", {},
@@ -64,7 +117,9 @@ async function load(root) {
         el("h3", { style: "margin:0" },
           { llm: "剧本 LLM", tts: "语音合成 TTS", image: "关键帧图像",
             video: "镜头视频", asr: "语音识别 ASR" }[cap] || cap),
-        sel),
+        el("div.row", {},
+          el("label.row.small", {}, "后端 ", sel),
+          el("label.row.small", {}, "模型预设 ", presetSel))),
       paramsArea, docs));
   }
 

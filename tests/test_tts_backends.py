@@ -68,10 +68,17 @@ def test_chattts_empty_text():
 def test_cosyvoice_requires_model_dir(tmp_path):
     from app.adapters.tts_cosyvoice import CosyVoiceTTS
 
+    # 显式置空 → 提示设置 model_dir
     with pytest.raises(AdapterError, match="model_dir"):
-        CosyVoiceTTS({}).run({"text": "你好", "out_path": str(tmp_path / "a.wav")})
+        CosyVoiceTTS({"model_dir": ""}).run(
+            {"text": "你好", "out_path": str(tmp_path / "a.wav")})
+    # 路径不存在 → 统一路径报错
     with pytest.raises(AdapterError, match="不存在"):
         CosyVoiceTTS({"model_dir": str(tmp_path / "nope")}).run(
+            {"text": "你好", "out_path": str(tmp_path / "a.wav")})
+    # 默认预设路径未下载 → 报错含离线下载指引
+    with pytest.raises(AdapterError, match="download_models.py"):
+        CosyVoiceTTS({}).run(
             {"text": "你好", "out_path": str(tmp_path / "a.wav")})
 
 
@@ -90,10 +97,17 @@ def test_gptsovits_requires_ref_and_prompt(tmp_path):
 def test_fishspeech_requires_checkpoint(tmp_path):
     from app.adapters.tts_fishspeech import FishSpeechAdapter
 
+    # 显式置空 → 提示设置 checkpoint_dir
     with pytest.raises(AdapterError, match="checkpoint_dir"):
-        FishSpeechAdapter({}).run({"text": "你好", "out_path": str(tmp_path / "a.wav")})
+        FishSpeechAdapter({"checkpoint_dir": ""}).run(
+            {"text": "你好", "out_path": str(tmp_path / "a.wav")})
+    # 路径不存在 → 统一路径报错
     with pytest.raises(AdapterError, match="不存在"):
         FishSpeechAdapter({"checkpoint_dir": str(tmp_path / "nope")}).run(
+            {"text": "你好", "out_path": str(tmp_path / "a.wav")})
+    # 默认预设路径未下载 → 报错含离线下载指引
+    with pytest.raises(AdapterError, match="download_models.py"):
+        FishSpeechAdapter({}).run(
             {"text": "你好", "out_path": str(tmp_path / "a.wav")})
 
 
@@ -144,8 +158,11 @@ def test_chattts_infer_and_save(tmp_path, monkeypatch):
     monkeypatch.setitem(sys.modules, "ChatTTS", fake_mod)
 
     out = tmp_path / "vo.wav"
-    res = ChatTTSAdapter({}).run({"text": "晚风便利店", "voice": "female_warm",
-                                  "out_path": str(out)})
+    # model_dir 置空 → ChatTTS 默认缓存模式（本地预设下载属另一路径，
+    # 见 tests/test_models_registry.py）
+    res = ChatTTSAdapter({"model_dir": ""}).run(
+        {"text": "晚风便利店", "voice": "female_warm",
+         "out_path": str(out)})
     assert out.exists() and res["sample_rate"] == 24000
     assert res["duration"] == pytest.approx(0.1, abs=0.01)
     # 音色种子缓存生效（同角色复用）

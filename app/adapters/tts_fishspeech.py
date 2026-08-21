@@ -17,6 +17,7 @@ from typing import Any
 
 from app.adapters.base import (AdapterBase, AdapterError, AdapterSpec,
                                ProgressFn, register_adapter)
+from app.adapters.model_paths import ModelPathError, resolve_model_path
 from app.adapters.tts_mock import write_wav
 from app.vram import ModelSlot, check_vram, pick_device
 
@@ -31,11 +32,12 @@ class FishSpeechAdapter(AdapterBase):
                     "LLM+Codec 架构，支持参考音频克隆；需 fish-speech 仓库源码安装。",
         priority=30, requires=["fish_speech"],
         default_params={
-            "checkpoint_dir": "", "device": "auto", "ref_audio": "",
-            "prompt_text": "", "voice_refs": {},
+            "checkpoint_dir": "models/tts/fish-speech-1.5", "device": "auto",
+            "ref_audio": "", "prompt_text": "", "voice_refs": {},
         },
         param_docs={
-            "checkpoint_dir": "模型目录（含 codec.pth；download_models.py 下载路径）",
+            "checkpoint_dir": "模型目录（含 codec.pth）：预设名（fish-speech-1.5）或 "
+                              "models/tts/<预设名>（相对项目根，也可绝对路径）",
             "device": "推理设备 auto/cpu/cuda",
             "ref_audio": "全局参考音频 wav 路径（克隆音色来源）",
             "prompt_text": "参考音频里说的文本（克隆音色对齐用）",
@@ -49,13 +51,16 @@ class FishSpeechAdapter(AdapterBase):
     def _load(self, params: dict[str, Any]):
         if self._slot.is_loaded:
             return self._slot.model
-        ckpt = str(params.get("checkpoint_dir") or "").strip()
-        if not ckpt:
+        try:
+            ckpt_path = resolve_model_path(
+                str(params.get("checkpoint_dir") or ""), "tts")
+        except ModelPathError as exc:
+            raise AdapterError(str(exc)) from exc
+        if ckpt_path is None:
             raise AdapterError(
                 "Fish Speech 需要参数 checkpoint_dir（模型目录，含 codec.pth）。"
                 "离线下载：python scripts/download_models.py --capability tts --preset fish-speech-1.5")
-        if not Path(ckpt).exists():
-            raise AdapterError(f"模型目录不存在: {ckpt}")
+        ckpt = str(ckpt_path)
         if not check_vram(VRAM_GB):
             raise AdapterError(f"显存不足：Fish Speech 需要约 {VRAM_GB}GB，"
                                "请到「系统」页释放显存或改用 CPU。")

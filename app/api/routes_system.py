@@ -27,6 +27,17 @@ def backends():
     return {cap: registry.list_specs(cap) for cap in CAPABILITIES}
 
 
+@router.get("/system/models")
+def models_catalog():
+    """模型预设目录（统一存放在项目根 models/）。
+
+    设置页「模型预设」下拉 + JSON 自动填充的数据源：
+    每个预设含推荐 backend、params 模板（相对路径）与已下载状态。
+    """
+    from app.models_registry import catalog
+    return catalog()
+
+
 @router.get("/system/vram")
 def vram_status():
     """显存状态：设备信息 + 已加载模型列表。"""

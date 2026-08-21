@@ -9,6 +9,7 @@ Base URL: `http://127.0.0.1:8320`，全部 JSON。交互式文档：`/docs`（Fa
 | GET | `/api/version` | 版本 |
 | GET | `/api/system/health` | 能力健康矩阵（配置/实际生效后端）+ 环境 + 显存状态 |
 | GET | `/api/system/backends` | 五能力 × 全部后端规格（设置页渲染用） |
+| GET | `/api/system/models` | 模型预设目录：各能力预设/参数模板/已下载状态（设置页「模型预设」下拉数据源） |
 | GET | `/api/system/vram` | 显存状态（GPU 型号/总量/已用/可用/已加载模型） |
 | POST | `/api/system/vram/release` | 释放所有已加载模型（手动回收显存） |
 | GET | `/api/settings` | 读设置 |

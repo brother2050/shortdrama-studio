@@ -276,6 +276,7 @@ shortdrama-studio/
 ├── app/（config/schemas/store/events/tasks/chat/continuity/pipeline/composer + adapters/ + api/）
 ├── web/（index.html + css/ + js/views/*）
 ├── scripts/download_models.py（ModelScope snapshot_download 离线下载器）
+├── models/（运行时生成，gitignore：统一模型根目录，布局 models/<能力>/<预设名>/）
 ├── docs/（models.md 模型手册、offline.md 离线部署、api.md）
 ├── data/（运行时生成，gitignore）
 └── tests/（12 个测试文件 + conftest.py）

@@ -3,6 +3,41 @@
 每个能力都有多个后端，`auto` 模式自动选择当前环境可用的最优后端；
 未安装任何重依赖时自动回退到内置 mock 后端（零依赖、确定性，保证全链路可用）。
 
+## 统一模型目录（规范）
+
+所有离线模型**统一存放在项目根 `models/` 目录**（与运行时 cwd 无关，
+可用环境变量 `STUDIO_MODELS_DIR` 覆盖），布局规范：
+
+```
+models/
+├── llm/qwen2.5-1.5b/            # <能力>/<预设名>（kebab-case，全小写）
+├── tts/cosyvoice2-0.5b/
+├── image/sdxl/
+├── image/_shared/qwen-image-base/   # 跨预设共享组件（只下载一次）
+├── video/wan2.2-ti2v-5b/
+├── video/_shared/umt5-xxl/
+├── asr/sensevoice-small/
+└── _cache/                      # ModelScope 下载缓存
+```
+
+**单一数据源**：预设注册表 `app/models_registry.py` 同时驱动下载脚本
+（`scripts/download_models.py`）、系统 API（`GET /api/system/models`）和
+设置页「模型预设」下拉（选中即自动填充 backend + 参数 JSON，可再手动微调），
+三处永不脱节。
+
+**路径解析规则**（`app/adapters/model_paths.py`，全部适配器共用）：
+
+| 设置里填的值 | 解析结果 |
+|---|---|
+| 预设名（如 `qwen2.5-1.5b`） | `models/llm/qwen2.5-1.5b/` |
+| 相对路径（如 `models/llm/qwen2.5-1.5b`） | 相对**项目根**解析（与 cwd 无关） |
+| 绝对路径 / `~/...` | 原样（含 `~` 展开） |
+| 在线仓库 id（如 `qwen/Qwen2.5-7B-Instruct`） | ModelScope 在线加载（直载型后端） |
+
+路径不存在时报错附带可选预设与下载命令，不静默失败；正反斜杠、尾部
+斜杠自动归一。适配器**本地直载优先**：预设目录已下载即完全离线加载，
+未下载时 DiffSynth 系后端在线回退且下载仍锚定项目根 `models/`。
+
 ## 能力 × 后端矩阵
 
 | 能力 | 后端 | 模型 / 来源 | 显存 | 许可 | 说明 |
@@ -28,13 +63,17 @@
 # 1. 安装可选依赖（核心功能不需要）
 pip install -r requirements-models.txt
 
-# 2. 离线下载模型（默认各能力推荐档，可 --list 查看全部档位）
+# 2. 离线下载模型到项目根 models/（默认各能力推荐档，可 --list 查看全部档位）
 python scripts/download_models.py --capability llm tts image
 python scripts/download_models.py --list          # 查看可选档位与体积
 
-# 3. 启动后到「设置」页选择后端并填 model_path（脚本下载完会打印要填的值）
+# 3. 启动后到「设置」页选「模型预设」——backend + 参数 JSON 自动填充
 python -m app    # 打开 http://127.0.0.1:8320
 ```
+
+设置页每个能力都有「模型预设」下拉（含已下载状态 ✓ 与体积提示）：
+选中预设即自动填好后端与完整参数 JSON，之后仍可手动微调 JSON；
+`GET /api/system/models` 返回同一份目录数据（预设/参数模板/下载状态）。
 
 ## 参数默认值
 

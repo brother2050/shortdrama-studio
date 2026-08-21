@@ -10,14 +10,22 @@ DiffSynth-Studio 作为外部依赖安装，不移植代码到本项目。
 - Wan2.1-T2V-1.3B：轻量 T2V（视频续写 input_video 场景）
 - Wan2.2-I2V-A14B：高质量 I2V（需 ≥16GB 显存）
 - Wan2.1-FLF2V-14B-720P：首尾帧过渡（镜头转场）
+
+模型加载双模式（统一存放于项目根 ``models/``，见 app/models_registry.py）：
+- **本地直载**：``models/video/<预设名>/`` 已下载 → ``ModelConfig(path=...)``
+  完全离线（tokenizer 来自共享组件 ``models/video/_shared/umt5-xxl/``）；
+- **在线回退**：未下载 → ``ModelConfig(model_id=...)`` 自动下载，且
+  ``DIFFSYNTH_MODEL_BASE_PATH`` 锚定到项目根 ``models/``（不散落到 cwd）。
 """
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
 
+from app import models_registry
 from app.adapters.base import (AdapterBase, AdapterError, AdapterSpec,
                                register_adapter)
+from app.adapters.model_paths import ensure_diffsynth_base_path
 from app.vram import ModelSlot, check_vram, pick_device
 
 # Wan 官方 negative prompt（examples/wanvideo 通用）
@@ -139,49 +147,72 @@ class DiffSynthWanVideo(AdapterBase):
                 f"请先在系统页查看显存状态，或切换到不需要 GPU 的后端。")
 
         conf = self._preset()
-        model_id = conf["model_id"]
+        preset_name = str(self.params.get("model_preset", "wan2.2-ti2v-5b"))
+        local_dir = models_registry.preset_local_dir("video", preset_name)
+        use_local = local_dir.is_dir() and any(local_dir.iterdir())
+
+        def _files(pattern: str):
+            """在预设目录 glob 文件（单文件→str，多分片→list）。"""
+            hits = sorted(local_dir.glob(pattern))
+            if not hits:
+                raise AdapterError(
+                    f"本地模型缺文件：期望 {local_dir / pattern}。"
+                    f"重新下载：python scripts/download_models.py "
+                    f"--capability video --preset {preset_name}")
+            return str(hits[0]) if len(hits) == 1 else [str(h) for h in hits]
+
+        def _umt5_dir() -> str:
+            d = models_registry.shared_local_dir("video/_shared/umt5-xxl")
+            if not d.is_dir() or not any(d.iterdir()):
+                raise AdapterError(
+                    f"共享 tokenizer 缺目录：期望 {d}。"
+                    f"重新下载：python scripts/download_models.py "
+                    f"--capability video --preset {preset_name}")
+            return str(d)
+
+        def _make_configs(vc: dict[str, Any]):
+            """(model_configs, tokenizer_config)：本地直载优先。"""
+            from diffsynth.core import ModelConfig
+
+            if use_local:
+                configs = [ModelConfig(path=_files(pattern), **vc)
+                           for pattern in conf["files"]]
+                return configs, ModelConfig(path=_umt5_dir())
+
+            ensure_diffsynth_base_path()   # 在线下载锚定项目根 models/
+            model_id = conf["model_id"]
+            configs = [ModelConfig(model_id=model_id,
+                                   origin_file_pattern=pattern, **vc)
+                       for pattern in conf["files"]]
+            tokenizer_config = ModelConfig(
+                model_id=_TOKENIZER_MODEL,
+                origin_file_pattern="google/umt5-xxl/")
+            return configs, tokenizer_config
 
         def _do_load():
             import torch
-            from diffsynth.core import ModelConfig
             from diffsynth.pipelines.wan_video import WanVideoPipeline
 
             device = pick_device(self.params.get("device", "auto"), need_gb)
             dtype = torch.bfloat16 if device == "cuda" else torch.float32
-            vc = _vram_config(device, dtype)
 
-            model_configs = [
-                ModelConfig(model_id=model_id, origin_file_pattern=pattern, **vc)
-                for pattern in conf["files"]
-            ]
-            tokenizer_config = ModelConfig(
-                model_id=_TOKENIZER_MODEL,
-                origin_file_pattern="google/umt5-xxl/")
-
-            try:
-                pipe = WanVideoPipeline.from_pretrained(
-                    torch_dtype=dtype,
-                    device=device,
+            def _from(device_, dtype_):
+                model_configs, tokenizer_config = _make_configs(
+                    _vram_config(device_, dtype_))
+                return WanVideoPipeline.from_pretrained(
+                    torch_dtype=dtype_,
+                    device=device_,
                     model_configs=model_configs,
                     tokenizer_config=tokenizer_config,
                 )
+
+            try:
+                return _from(device, dtype)
             except (torch.cuda.OutOfMemoryError, RuntimeError) as exc:
                 if "out of memory" not in str(exc).lower():
                     raise
                 # 低显存回退：CPU 常驻 + 分层 offload（对照官方 low_vram 模式）
-                vc = _vram_config("cpu", torch.float32)
-                model_configs = [
-                    ModelConfig(model_id=model_id,
-                                origin_file_pattern=pattern, **vc)
-                    for pattern in conf["files"]
-                ]
-                pipe = WanVideoPipeline.from_pretrained(
-                    torch_dtype=torch.float32,
-                    device="cpu",
-                    model_configs=model_configs,
-                    tokenizer_config=tokenizer_config,
-                )
-            return pipe
+                return _from("cpu", torch.float32)
 
         return self._slot.load(_do_load)
 

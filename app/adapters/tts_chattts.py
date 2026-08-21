@@ -15,6 +15,7 @@ from typing import Any
 
 from app.adapters.base import (AdapterBase, AdapterError, AdapterSpec,
                                ProgressFn, register_adapter)
+from app.adapters.model_paths import ModelPathError, resolve_model_path
 from app.adapters.tts_mock import write_wav
 from app.vram import ModelSlot, check_vram, pick_device
 
@@ -36,9 +37,10 @@ class ChatTTSAdapter(AdapterBase):
         description="对话感中文配音（github.com/2noise/ChatTTS），角色音色固定种子，"
                     "同一角色跨集音色一致；CPU 可跑（慢），GPU 更快。",
         priority=20, requires=["ChatTTS"],
-        default_params={"model_dir": "", "device": "auto"},
+        default_params={"model_dir": "models/tts/chattts", "device": "auto"},
         param_docs={
-            "model_dir": "ChatTTS 本地模型目录（空=默认缓存；离线填 download_models.py 下载路径）",
+            "model_dir": "ChatTTS 本地模型目录：预设名（chattts）或 "
+                         "models/tts/chattts（相对项目根）；空=默认缓存",
             "device": "推理设备 auto/cpu/cuda",
         },
         vram_gb=VRAM_GB, license="CC-BY-NC-4.0（ChatTTS）",
@@ -53,7 +55,15 @@ class ChatTTSAdapter(AdapterBase):
         if not check_vram(VRAM_GB):
             raise AdapterError(f"显存不足：ChatTTS 需要约 {VRAM_GB}GB，"
                                "请到「系统」页释放显存或改用 CPU。")
-        model_dir = str(params.get("model_dir") or "").strip()
+        # 统一路径解析：预设名/相对项目根/绝对路径（空=默认缓存）
+        raw_dir = str(params.get("model_dir") or "").strip()
+        model_dir = ""
+        if raw_dir:
+            try:
+                resolved = resolve_model_path(raw_dir, "tts")
+            except ModelPathError as exc:
+                raise AdapterError(str(exc)) from exc
+            model_dir = str(resolved or "")
         device = pick_device(str(params.get("device") or "auto"), VRAM_GB)
 
         def _do_load():

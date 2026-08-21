@@ -10,6 +10,7 @@ from typing import Any
 from app.adapters.base import (AdapterBase, AdapterError, AdapterSpec,
                                register_adapter)
 from app.adapters.asr_script import segments_to_srt
+from app.adapters.model_paths import ModelPathError, model_source
 
 
 @register_adapter
@@ -19,10 +20,11 @@ class FunASR(AdapterBase):
         description="ModelScope FunASR 本地识别（iic/SenseVoiceSmall CPU 友好；"
                     "paraformer-large 带时间戳），对配音音轨二次校对字幕。",
         priority=5, requires=["funasr"],
-        default_params={"model": "iic/SenseVoiceSmall_with_time",
+        default_params={"model": "models/asr/sensevoice-small",
                         "device": "auto"},
         param_docs={
-            "model": "FunASR 模型 id（本地缓存或 ModelScope id）",
+            "model": "模型目录（预设名 sensevoice-small 或 models/asr/<预设名>，"
+                     "相对项目根）或 FunASR 在线模型 id",
             "device": "auto/cpu/cuda",
         },
         license="Apache-2.0（FunASR / Paraformer）",
@@ -33,8 +35,12 @@ class FunASR(AdapterBase):
         if not audio:
             raise AdapterError("funasr 需要 audio_path")
         import funasr
-        model = funasr.AutoModel(model=self.params.get("model"),
-                                 disable_update=True)
+        try:
+            source, _local = model_source(
+                str(self.params.get("model") or ""), "asr")
+        except ModelPathError as exc:
+            raise AdapterError(str(exc)) from exc
+        model = funasr.AutoModel(model=source, disable_update=True)
         if progress:
             progress("识别中", 50.0)
         res = model.generate(input=audio)

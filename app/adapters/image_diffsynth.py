@@ -4,8 +4,12 @@
 DiffSynth-Studio 更新频繁，作为外部依赖安装（``pip install diffsynth`` 或
 ``git clone + pip install -e .``），不移植代码到本项目中。
 
-模型通过 ``ModelConfig(model_id=...)`` 自动从 ModelScope 下载，支持
-``DIFFSYNTH_MODEL_BASE_PATH`` 环境变量指定缓存目录。
+模型加载双模式（统一存放于项目根 ``models/``，见 app/models_registry.py）：
+- **本地直载**：``models/image/<预设名>/`` 已下载 → ``ModelConfig(path=...)``
+  完全离线（Qwen 系列的 text_encoder/vae/tokenizer 来自共享组件目录
+  ``models/image/_shared/qwen-image-base/``）；
+- **在线回退**：未下载 → ``ModelConfig(model_id=...)`` 自动下载，且
+  ``DIFFSYNTH_MODEL_BASE_PATH`` 锚定到项目根 ``models/``（不散落到 cwd）。
 
 对照官方 examples 的关键差异：
 - Qwen-Image 系列：``QwenImagePipeline`` + ``tokenizer_config``；
@@ -18,8 +22,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from app import models_registry
 from app.adapters.base import (AdapterBase, AdapterError, AdapterSpec,
                                register_adapter)
+from app.adapters.model_paths import ensure_diffsynth_base_path
 from app.vram import ModelSlot, check_vram, pick_device
 
 _NEG_DEFAULT = "低清, 变形, 多余肢体, 文字水印, 过曝, 摩尔纹"
@@ -102,12 +108,79 @@ class DiffSynthImage(AdapterBase):
                 f"请先在系统页查看显存状态，或切换到不需要 GPU 的后端。")
 
         conf = self._preset()
-        model_id = conf["model_id"]
+        preset = str(self.params.get("model_preset", "sd15"))
 
         def _build_configs():
-            """按预设构造 (model_configs, tokenizer/processor_config)。"""
+            """按预设构造 (model_configs, tokenizer/processor_config)。
+
+            优先本地规范布局（models/image/<preset>/，完全离线）；
+            未下载时回退 model_id 在线加载（下载锚定项目根 models/）。
+            """
             from diffsynth.core import ModelConfig
 
+            local_dir = models_registry.preset_local_dir("image", preset)
+            shared = models_registry.shared_local_dir
+            use_local = local_dir.is_dir() and any(local_dir.iterdir())
+
+            def _dir(base: Path, rel: str, what: str) -> str:
+                d = base / rel
+                if not d.is_dir() or not any(d.iterdir()):
+                    raise AdapterError(
+                        f"本地模型缺目录：{what}（期望 {d}）。"
+                        f"重新下载：python scripts/download_models.py "
+                        f"--capability image --preset {preset}")
+                return str(d)
+
+            def _files(base: Path, pattern: str, what: str):
+                """glob 本地文件（单文件→str，多分片→list）。"""
+                hits = sorted(base.glob(pattern))
+                if not hits:
+                    raise AdapterError(
+                        f"本地模型缺文件：{what}（期望 {base / pattern}）。"
+                        f"重新下载：python scripts/download_models.py "
+                        f"--capability image --preset {preset}")
+                return str(hits[0]) if len(hits) == 1 else [str(h) for h in hits]
+
+            if use_local:
+                if conf["pipe"] == "sd":
+                    configs = [
+                        ModelConfig(path=_files(local_dir, "text_encoder/model.safetensors", "text_encoder")),
+                        ModelConfig(path=_files(local_dir, "unet/diffusion_pytorch_model.safetensors", "unet")),
+                        ModelConfig(path=_files(local_dir, "vae/diffusion_pytorch_model.safetensors", "vae")),
+                    ]
+                    return configs, ModelConfig(path=_dir(local_dir, "tokenizer", "tokenizer")), None
+                if conf["pipe"] == "sdxl":
+                    configs = [
+                        ModelConfig(path=_files(local_dir, "text_encoder/model.safetensors", "text_encoder")),
+                        ModelConfig(path=_files(local_dir, "text_encoder_2/model.safetensors", "text_encoder_2")),
+                        ModelConfig(path=_files(local_dir, "unet/diffusion_pytorch_model.safetensors", "unet")),
+                        ModelConfig(path=_files(local_dir, "vae/diffusion_pytorch_model.safetensors", "vae")),
+                    ]
+                    return configs, ModelConfig(path=_dir(local_dir, "tokenizer", "tokenizer")), None
+                if conf["pipe"] == "flux":
+                    configs = [
+                        ModelConfig(path=_files(local_dir, "text_encoder/*.safetensors", "text_encoder")),
+                        ModelConfig(path=_files(local_dir, "transformer/*.safetensors", "transformer")),
+                        ModelConfig(path=_files(local_dir, "vae/diffusion_pytorch_model.safetensors", "vae")),
+                    ]
+                    return configs, ModelConfig(path=_dir(local_dir, "tokenizer", "tokenizer")), None
+                # qwen / qwen_edit：transformer 在预设目录，其余在共享组件目录
+                base = shared("image/_shared/qwen-image-base")
+                configs = [
+                    ModelConfig(path=_files(local_dir, "transformer/diffusion_pytorch_model*.safetensors", "transformer")),
+                    ModelConfig(path=_files(base, "text_encoder/model*.safetensors", "共享 text_encoder")),
+                    ModelConfig(path=_files(base, "vae/diffusion_pytorch_model.safetensors", "共享 vae")),
+                ]
+                if conf["pipe"] == "qwen":
+                    return configs, ModelConfig(path=_dir(base, "tokenizer", "共享 tokenizer")), None
+                proc_base = shared("image/_shared/qwen-image-edit-processor")
+                processor = ModelConfig(
+                    path=_dir(proc_base, "processor", "共享 processor"))
+                return configs, None, processor
+
+            # ---- 在线回退：model_id 自动下载（锚定项目根 models/）----
+            ensure_diffsynth_base_path()
+            model_id = conf["model_id"]
             if conf["pipe"] == "sd":
                 configs = [
                     ModelConfig(model_id=model_id,
