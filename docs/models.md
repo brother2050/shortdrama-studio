@@ -47,7 +47,7 @@ models/
 | llm | `modelscope` | qwen/Qwen2.5-{0.5B,1.5B,7B}-Instruct | 2~16GB | Apache-2.0 | ModelScope 原生 LLM 推理 |
 | tts | `mock` | 内置正弦波 | 0 | MIT | 零依赖兜底 |
 | tts | `cosyvoice` | iic/CosyVoice2-0.5B | 2GB | Apache-2.0 | 多音色中文配音（推荐） |
-| tts | `chattts` | pzc163/chatTTS | 1.5GB | CC-BY-NC-4.0 | 对话感配音，角色固定种子 |
+| tts | `chattts` | AI-ModelScope/ChatTTS（官方 HF 镜像，与 ChatTTS≥0.2 兼容） | 1.5GB | CC-BY-NC-4.0 | 对话感配音，角色固定种子 |
 | tts | `gpt_sovits` | AIDub/GPT-SoVITS | 3GB | MIT | 声音克隆（参考音频） |
 | tts | `fish_speech` | fishaudio/fish-speech-1.5 | 4GB | CC-BY-NC-SA | 多语言配音/克隆 |
 | image | `mock` | 内置 PNG 生成 | 0 | MIT | 零依赖兜底（色块构图） |

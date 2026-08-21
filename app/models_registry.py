@@ -55,6 +55,13 @@ class ModelPreset:
     backend: str               # 推荐后端（选中预设时自动填入）
     params: dict[str, Any] = field(default_factory=dict)
     shared: tuple[SharedDownload, ...] = ()
+    #: 只下载仓库中匹配的文件（modelscope allow_file_pattern，逗号分隔；
+    #: None = 整仓下载）。用于剔除镜像仓库里的旧版/冗余大文件。
+    file_pattern: str | None = None
+    #: 「已下载」判定标记文件（相对预设目录；全部存在才算下载完成）。
+    #: 缺省 = 目录存在且非空。ChatTTS 等镜像仓库含多版本文件时必需，
+    #: 否则旧版 .pt 文件会被误判为"已下载 ✓"。
+    required_files: tuple[str, ...] = ()
 
     # ------------------------------------------------------------------
     @property
@@ -67,11 +74,22 @@ class ModelPreset:
         return paths.models_root() / self.capability / self.name
 
     def is_downloaded(self) -> bool:
-        """已下载 = 目录存在且含至少一个文件（顶层或子目录）。"""
+        """已下载 = 标记文件齐全（required_files）；未设标记时目录存在且非空。
+
+        ChatTTS 镜像仓库同时含 v0.1 的 .pt 与 v0.2.5 的 .safetensors，
+        只看"目录非空"会把旧版文件误判为已下载，故用标记文件严格判定。
+        """
         d = self.local_dir()
         if not d.is_dir():
             return False
+        if self.required_files:
+            return all((d / f).is_file() for f in self.required_files)
         return any(d.iterdir())
+
+    def missing_files(self) -> list[str]:
+        """缺失的标记文件（已下载时为空列表；用于精确报错）。"""
+        d = self.local_dir()
+        return [f for f in self.required_files if not (d / f).is_file()]
 
     def download_command(self) -> str:
         return (f"python scripts/download_models.py "
@@ -118,9 +136,19 @@ REGISTRY: dict[str, dict[str, ModelPreset]] = {
             "推荐：多音色中文配音", "cosyvoice",
             {"model_dir": "models/tts/cosyvoice2-0.5b"}),
         "chattts": ModelPreset(
-            "tts", "chattts", "pzc163/chatTTS", 2.0,
+            "tts", "chattts", "AI-ModelScope/ChatTTS", 1.5,
             "对话感中文配音（另需 pip install ChatTTS）", "chattts",
-            {"model_dir": "models/tts/chattts"}),
+            {"model_dir": "models/tts/chattts"},
+            # 只下载 ChatTTS≥0.2 需要的 safetensors 布局（镜像仓里另有
+            # v0.1 的 .pt 旧版文件，勿下）；文件与官方 HF 仓库字节一致
+            # （sha256 校验通过，见 tests/test_models_registry.py）。
+            file_pattern="asset/*.safetensors,asset/gpt/*,asset/tokenizer/*",
+            # Chat().load(source="custom") 会做 sha256 完整性校验，
+            # 缺任何一个文件都报"加载失败"，故用标记文件严格判定。
+            required_files=("asset/Vocos.safetensors", "asset/DVAE.safetensors",
+                            "asset/Embed.safetensors", "asset/Decoder.safetensors",
+                            "asset/gpt/config.json", "asset/gpt/model.safetensors",
+                            "asset/tokenizer/tokenizer.json")),
         "gpt-sovits": ModelPreset(
             "tts", "gpt-sovits", "AIDub/GPT-SoVITS", 4.0,
             "声音克隆配音（另需 GPT-SoVITS 仓库源码安装）", "gpt_sovits",
@@ -242,6 +270,7 @@ def catalog() -> dict[str, Any]:
                 "params": dict(preset.params),        # 自动填充 JSON 模板
                 "dir_rel": preset.dir_rel,            # models/ 下相对目录
                 "downloaded": preset.is_downloaded(),
+                "missing_files": preset.missing_files(),  # 未下齐的文件（精确提示）
                 "download_command": preset.download_command(),
                 "default": DEFAULT_PRESET.get(cap) == preset.name,
             })

@@ -206,6 +206,15 @@ def update_settings(partial: dict) -> dict:
     return result
 
 
+def reset_settings() -> dict:
+    """恢复出厂默认设置，并释放所有已加载模型（配置全部回退）。"""
+    settings = get_settings()
+    result = settings.reset()
+    registry.unload_all()
+    logger.info("设置已恢复默认（全部能力回到 auto，参数清空）")
+    return result
+
+
 def system_health() -> dict:
     import platform
 

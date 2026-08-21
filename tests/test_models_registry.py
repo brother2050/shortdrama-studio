@@ -153,6 +153,43 @@ class TestRegistry:
         (d / "config.json").write_text("{}", "utf-8")
         assert p.is_downloaded() is True
 
+    def test_chattts_uses_official_mirror_with_pattern(self):
+        """ChatTTS 预设指向官方 HF 镜像（v0.2 safetensors 布局）。
+
+        回归：pzc163/chatTTS 镜像只有 v0.1 的 .pt 文件，ChatTTS≥0.2
+        的 sha256 资产校验必然失败 → "模型下载好了但报找不到"。
+        """
+        p = models_registry.find_preset("tts", "chattts")
+        assert p.repo_id == "AI-ModelScope/ChatTTS"
+        assert p.file_pattern and "safetensors" in p.file_pattern
+        assert "asset/gpt/*" in p.file_pattern
+        assert p.required_files, "必须用标记文件严格判定已下载"
+        for f in p.required_files:
+            assert f.startswith("asset/"), f
+
+    def test_chattts_legacy_pt_not_counted_as_downloaded(
+            self, isolated_models_dir):
+        """旧版 v0.1 .pt 文件不算已下载（required_files 严格判定）。"""
+        p = models_registry.find_preset("tts", "chattts")
+        d = isolated_models_dir / "tts" / "chattts" / "asset"
+        d.mkdir(parents=True)
+        for legacy in ("Decoder.pt", "DVAE.pt", "GPT.pt",
+                       "spk_stat.pt", "tokenizer.pt", "Vocos.pt"):
+            (d / legacy).write_bytes(b"old-v0.1")
+        assert p.is_downloaded() is False
+        missing = p.missing_files()
+        assert "asset/gpt/model.safetensors" in missing
+        assert "asset/Vocos.safetensors" in missing
+
+    def test_chattts_complete_layout_counted(self, isolated_models_dir):
+        p = models_registry.find_preset("tts", "chattts")
+        d = isolated_models_dir / "tts" / "chattts"
+        for f in p.required_files:
+            (d / f).parent.mkdir(parents=True, exist_ok=True)
+            (d / f).write_bytes(b"x")
+        assert p.is_downloaded() is True
+        assert p.missing_files() == []
+
     def test_catalog_structure(self):
         cat = models_registry.catalog()
         assert Path(cat["models_root"]) == paths.models_root()
@@ -160,7 +197,7 @@ class TestRegistry:
             assert items
             for it in items:
                 assert {"name", "repo_id", "size_gb", "desc", "backend",
-                        "params", "dir_rel", "downloaded",
+                        "params", "dir_rel", "downloaded", "missing_files",
                         "download_command", "default"} <= set(it)
 
 
@@ -295,6 +332,78 @@ class TestDownloadScript:
         umt5_calls = [d for _, d in calls
                       if d.endswith("video/_shared/umt5-xxl")]
         assert len(umt5_calls) == 1
+
+    def test_chattts_download_honors_pattern_and_markers(
+            self, isolated_models_dir, monkeypatch):
+        """ChatTTS 下载：file_pattern 传给 modelscope，标记文件齐全才算成功。"""
+        from scripts import download_models as dm
+
+        seen_kwargs: list = []
+        preset = models_registry.find_preset("tts", "chattts")
+
+        def fake_snapshot(repo_id, local_dir=None, **kwargs):
+            seen_kwargs.append(kwargs)
+            d = Path(local_dir)
+            for f in preset.required_files:      # 落盘全部标记文件
+                (d / f).parent.mkdir(parents=True, exist_ok=True)
+                (d / f).write_bytes(b"x")
+            return str(d)
+
+        fake = types.ModuleType("modelscope")
+        fake.snapshot_download = fake_snapshot
+        monkeypatch.setitem(sys.modules, "modelscope", fake)
+
+        assert dm.download(preset, isolated_models_dir) is not None
+        # file_pattern 生效（只拉 safetensors 布局，跳过镜像里的 v0.1 .pt）
+        assert seen_kwargs[0].get("allow_file_pattern") == preset.file_pattern
+        assert preset.is_downloaded() is True
+
+    def test_chattts_download_cleans_legacy_pt(self, isolated_models_dir,
+                                               monkeypatch):
+        """目录里已有 v0.1 .pt 旧文件时，重下载后自动清理。"""
+        from scripts import download_models as dm
+
+        preset = models_registry.find_preset("tts", "chattts")
+        d = isolated_models_dir / "tts" / "chattts" / "asset"
+        d.mkdir(parents=True)
+        (d / "GPT.pt").write_bytes(b"legacy")    # 用户之前下的旧版文件
+
+        def fake_snapshot(repo_id, local_dir=None, **kwargs):
+            base = Path(local_dir)
+            for f in preset.required_files:
+                (base / f).parent.mkdir(parents=True, exist_ok=True)
+                (base / f).write_bytes(b"x")
+            return str(base)
+
+        fake = types.ModuleType("modelscope")
+        fake.snapshot_download = fake_snapshot
+        monkeypatch.setitem(sys.modules, "modelscope", fake)
+
+        dm.download(preset, isolated_models_dir)
+        assert not (d / "GPT.pt").exists()       # 旧文件已清理
+        assert preset.is_downloaded() is True
+
+    def test_download_incomplete_reports_missing(self, isolated_models_dir,
+                                                 monkeypatch, capsys):
+        """下载后标记文件缺失 → 明确报错并返回 None（而非运行时找不到）。"""
+        from scripts import download_models as dm
+
+        preset = models_registry.find_preset("tts", "chattts")
+
+        def fake_snapshot(repo_id, local_dir=None, **kwargs):  # 只落一半文件
+            base = Path(local_dir)
+            f = preset.required_files[0]
+            (base / f).parent.mkdir(parents=True, exist_ok=True)
+            (base / f).write_bytes(b"x")
+            return str(base)
+
+        fake = types.ModuleType("modelscope")
+        fake.snapshot_download = fake_snapshot
+        monkeypatch.setitem(sys.modules, "modelscope", fake)
+
+        assert dm.download(preset, isolated_models_dir) is None
+        out = capsys.readouterr().out
+        assert "下载不完整" in out and "model.safetensors" in out
 
 
 # ----------------------------------------------------------------------

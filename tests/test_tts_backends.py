@@ -56,6 +56,74 @@ def test_tts_adapters_lazy_import():
 
 
 # ----------------------------------------------------------------------
+# ChatTTS 资产预检（修复"下载好了但报找不到"）
+# ----------------------------------------------------------------------
+class TestChatTTSAssetsPrecheck:
+    def test_incomplete_layout_reports_missing_files(self, tmp_path,
+                                                     monkeypatch):
+        """v0.1 旧布局（只有 .pt）→ 精确报缺哪些 safetensors + 修复指引。"""
+        from app.adapters import tts_chattts
+        from app.adapters.tts_chattts import ChatTTSAdapter
+
+        d = tmp_path / "chattts" / "asset"
+        d.mkdir(parents=True)
+        for legacy in ("GPT.pt", "DVAE.pt", "spk_stat.pt"):  # 用户已下载旧版
+            (d / legacy).write_bytes(b"old")
+
+        monkeypatch.setattr(tts_chattts, "check_vram", lambda *_: True)
+        adapter = ChatTTSAdapter({"model_dir": str(d.parent)})
+        with pytest.raises(AdapterError) as ei:
+            adapter._load(adapter.params)
+        msg = str(ei.value)
+        assert "模型不完整" in msg
+        assert "asset/gpt/model.safetensors" in msg     # 缺哪些文件
+        assert "safetensors" in msg                     # 原因说明
+        assert "download_models.py --capability tts --preset chattts" in msg
+
+    def test_complete_layout_passes_precheck(self, tmp_path, monkeypatch):
+        """布局齐全 → 预检通过（不抛错，后续走 ChatTTS 真实加载）。"""
+        import types
+
+        from app.adapters import tts_chattts
+        from app.adapters.tts_chattts import ChatTTSAdapter
+        from app import models_registry
+
+        preset = models_registry.find_preset("tts", "chattts")
+        d = tmp_path / "chattts"
+        for f in preset.required_files:
+            (d / f).parent.mkdir(parents=True, exist_ok=True)
+            (d / f).write_bytes(b"x")
+
+        monkeypatch.setattr(tts_chattts, "check_vram", lambda *_: True)
+
+        loaded: list = []
+
+        class FakeChat:
+            def load(self, **kw):
+                loaded.append(kw)
+                return True
+
+        fake_mod = types.ModuleType("ChatTTS")
+        fake_mod.Chat = FakeChat
+        monkeypatch.setitem(sys.modules, "ChatTTS", fake_mod)
+        fake_torch = types.ModuleType("torch")
+        fake_torch.device = lambda x: x
+        fake_torch.manual_seed = lambda *_: None
+        fake_torch.cuda = types.SimpleNamespace(is_available=lambda: False)
+        monkeypatch.setitem(sys.modules, "torch", fake_torch)
+        monkeypatch.setattr(tts_chattts.ModelSlot, "load",
+                            lambda self, fn: fn())
+
+        chat = ChatTTSAdapter({"model_dir": str(d)})._load(
+            {"model_dir": str(d)})
+        assert chat is not None
+        # custom 模式：source=custom + 解析后的绝对路径
+        assert loaded[0]["source"] == "custom"
+        assert str(loaded[0]["custom_path"]).startswith(str(tmp_path))
+        ChatTTSAdapter({}).unload()                   # 清理类级槽位缓存
+
+
+# ----------------------------------------------------------------------
 # 参数校验（不加载模型即可验证）
 # ----------------------------------------------------------------------
 def test_chattts_empty_text():

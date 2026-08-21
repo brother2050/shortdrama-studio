@@ -133,6 +133,23 @@ def test_settings_roundtrip_and_validation():
     assert bad.status_code == 400
 
 
+def test_settings_reset_restores_defaults():
+    """设置页「恢复默认」按钮 → POST /api/settings/reset。"""
+    client.put("/api/settings", json={"settings": {
+        "capabilities": {"tts": {"backend": "mock", "params": {"speed": 9}}},
+        "video_output": {"width": 1920, "height": 1080},
+        "episode_defaults": {"shots_per_episode": 8}}})
+    res = client.post("/api/settings/reset")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["capabilities"]["tts"]["backend"] == "auto"
+    assert data["capabilities"]["tts"]["params"] == {}
+    assert data["video_output"] == {"width": 1280, "height": 720, "fps": 24}
+    assert data["episode_defaults"]["shots_per_episode"] == 4
+    # 持久化生效（重新 GET 仍是默认值）
+    assert client.get("/api/settings").json()["video_output"]["width"] == 1280
+
+
 # -- 系统 -----------------------------------------------------------------
 def test_system_health_and_backends():
     health = client.get("/api/system/health").json()

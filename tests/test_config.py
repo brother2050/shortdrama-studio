@@ -62,6 +62,30 @@ def test_validation_rejects_bad_types():
         get_settings().update({"video_output": {"fps": -1}})
 
 
+def test_reset_restores_defaults_and_persists():
+    """恢复默认：自定义修改全部回退并写盘（设置页「恢复默认」按钮）。"""
+    s = get_settings()
+    s.update({"capabilities": {"tts": {"backend": "mock", "params": {"speed": 2}}},
+              "video_output": {"width": 1920, "height": 1080},
+              "episode_defaults": {"shots_per_episode": 10, "style": "赛博朋克"}})
+    assert s.capability("tts")["backend"] == "mock"
+
+    result = s.reset()
+    assert result == DEFAULT_SETTINGS                      # 回到默认
+    assert s.capability("tts") == {"backend": "auto", "params": {}}
+    assert s.capability("llm")["backend"] == "auto"
+    assert s.as_dict()["video_output"]["width"] == 1280
+    assert s.as_dict()["episode_defaults"]["shots_per_episode"] == 4
+    assert s.as_dict()["episode_defaults"]["style"] == \
+        DEFAULT_SETTINGS["episode_defaults"]["style"]
+    # 持久化：磁盘上的 config.json 也回默认
+    raw = json.loads(paths.config_path().read_text("utf-8"))
+    assert raw["capabilities"]["tts"]["backend"] == "auto"
+    assert raw["video_output"]["width"] == 1280
+    # 新实例加载后同样是默认值
+    assert Settings().capability("tts")["backend"] == "auto"
+
+
 def test_deep_merge_nested_and_scalar():
     base = {"a": {"x": 1, "y": 2}, "b": 3}
     out = deep_merge(base, {"a": {"y": 9}, "b": 4, "c": 5})

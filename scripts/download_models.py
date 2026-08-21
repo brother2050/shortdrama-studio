@@ -87,6 +87,11 @@ def download(preset: ModelPreset, root: Path) -> Path | None:
     print(f"[{preset.capability}] {preset.name} — {preset.desc}")
     os.environ.setdefault("MODELSCOPE_CACHE", str(root / "_cache"))
 
+    # 已下齐（标记文件齐全）→ 跳过
+    if preset.is_downloaded():
+        print(f"  已下载，跳过：{preset.local_dir()}")
+        return preset.local_dir()
+
     # 共享组件（跨预设只下载一次；已存在则跳过）
     for shared in preset.shared:
         shared_dir = root / shared.into
@@ -95,7 +100,30 @@ def download(preset: ModelPreset, root: Path) -> Path | None:
             continue
         _download_repo(shared.repo_id, shared_dir, shared.file_pattern)
 
-    return _download_repo(preset.repo_id, preset.local_dir())
+    path = _download_repo(preset.repo_id, preset.local_dir(), preset.file_pattern)
+    if path is None:
+        return None
+
+    # 下载后校验标记文件（缺文件时明确报错，而不是运行时"模型找不到"）
+    missing = preset.missing_files()
+    if missing:
+        print(f"  ✗ 下载不完整，缺少 {len(missing)} 个文件：")
+        for f in missing:
+            print(f"      - {preset.local_dir() / f}")
+        print("  请重新运行本命令（断点续传，已下完的文件不会重复下载）。")
+        return None
+
+    # 清理镜像仓库里的旧版冗余文件（如 ChatTTS v0.1 的 .pt，新版本用不到）
+    legacy = [p for p in preset.local_dir().rglob("*.pt")
+              if "safetensors" not in p.name]
+    if legacy and preset.file_pattern:
+        freed = 0
+        for p in legacy:
+            freed += p.stat().st_size
+            p.unlink()
+        print(f"  已清理 {len(legacy)} 个旧版 .pt 文件"
+              f"（释放 {freed / 1024 ** 3:.2f}GB）")
+    return path
 
 
 def print_usage_hint(results: list[ModelPreset]) -> None:

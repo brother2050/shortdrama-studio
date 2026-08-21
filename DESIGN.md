@@ -153,7 +153,7 @@ data/
 |---|---|---|---:|---:|---|---|
 | `mock`（默认兜底） | 无（stdlib wave） | - | 24000 | 0 | MIT | 按音色生成可听的正弦谐波音轨，时长=按字数估算，离线可跑 |
 | `cosyvoice` | cosyvoice 包 | `iic/CosyVoice2-0.5B`（需另下 `iic/CosyVoice-ttsfrd`） | 24000 | 2GB | Apache-2.0 | 质量最佳，多音色 SFT，ModelScope 离线 |
-| `chattts` | ChatTTS 包 | `pzc163/chatTTS` | 24000 | 1.5GB | CC-BY-NC-4.0 | 对话感；音色固定种子（同角色跨集一致） |
+| `chattts` | ChatTTS 包 | `AI-ModelScope/ChatTTS`（官方 HF 镜像，sha256 与官方一致；ChatTTS≥0.2 需 safetensors 布局，注册表带标记文件防旧版 .pt 误判已下载） | 24000 | 1.5GB | CC-BY-NC-4.0 | 对话感；音色固定种子（同角色跨集一致） |
 | `gpt_sovits` | GPT_SoVITS 包（仓库源码安装） | `AIDub/GPT-SoVITS` | 32000 | 3GB | MIT | 声音克隆：`ref_audio`+`prompt_text` 或 `voice_refs` 按角色映射 |
 | `fish_speech` | fish_speech 包（仓库源码安装） | `fishaudio/fish-speech-1.5` | 由 codec 决定 | 4GB | CC-BY-NC-SA | LLM+Codec 多语言；`voice_refs` 参考音频克隆 |
 

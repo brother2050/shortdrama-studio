@@ -92,6 +92,13 @@ class Settings:
         self.save()
         return self.as_dict()
 
+    def reset(self) -> dict[str, Any]:
+        """恢复全部默认设置并持久化（设置页「恢复默认」按钮）。"""
+        with self._lock:
+            self._data = json.loads(json.dumps(DEFAULT_SETTINGS, ensure_ascii=False))
+        self.save()
+        return self.as_dict()
+
     # -- 校验 -------------------------------------------------------------
     @staticmethod
     def validate(data: dict[str, Any]) -> dict[str, Any]:

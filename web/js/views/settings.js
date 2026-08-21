@@ -14,8 +14,17 @@ function detectPresetName(conf, presets) {
 }
 
 async function load(root) {
-  const [settings, backends, catalog] = await Promise.all([
-    api.settings(), api.backends(), api.modelsCatalog()]);
+  let settings, backends, catalog;
+  try {
+    [settings, backends, catalog] = await Promise.all([
+      api.settings(), api.backends(), api.modelsCatalog()]);
+  } catch (e) {
+    root.innerHTML = "";
+    root.append(el("div.card", {},
+      el("h3", {}, "设置加载失败"),
+      el("div.muted", {}, String(e.message || e))));
+    return;
+  }
   root.innerHTML = "";
   const draft = structuredClone(settings);
 
@@ -46,13 +55,20 @@ async function load(root) {
     sel.value = conf.backend;
 
     /* 模型预设下拉：选中即自动填充 backend + params JSON */
+    const presetLabel = (p) => {
+      const base = `${p.name}${p.default ? "（推荐）" : ""} — ${p.desc}`;
+      if (p.downloaded) return `${base} ✓已下载`;
+      const miss = p.missing_files?.length;
+      return miss
+        ? `${base}（不完整，缺 ${miss} 个文件）`
+        : `${base}（未下载，约 ${p.size_gb}GB）`;
+    };
     const presetSel = el("select", { title: "选择模型预设，自动生成参数 JSON" },
       el("option", { value: "custom" }, "自定义（手动编辑参数 JSON）"),
       ...presets.map((p) => el("option", {
         value: p.name,
         selected: detectPresetName(conf, presets) === p.name ? "" : null },
-        `${p.name}${p.default ? "（推荐）" : ""} — ${p.desc}`
-        + `${p.downloaded ? " ✓已下载" : `（未下载，约 ${p.size_gb}GB）`}`)));
+        presetLabel(p))));
     presetSel.value = detectPresetName(conf, presets);
 
     /* 参数 JSON 编辑框 */
@@ -95,7 +111,11 @@ async function load(root) {
       sel.value = p.backend;
       paramsArea.value = JSON.stringify(conf.params, null, 2);
       updateDocs();
-      toast(`已选预设 ${name}：${p.downloaded ? "本地已下载，完全离线可用" : "未下载，首次使用将自动下载（也可先运行下载脚本）"}`);
+      toast(`已选预设 ${name}：${
+        p.downloaded ? "本地已下载，完全离线可用"
+        : p.missing_files?.length
+          ? `本地文件不完整（缺 ${p.missing_files.length} 个），请重新运行下载脚本补齐`
+          : "未下载，首次使用将自动下载（也可先运行下载脚本）"}`);
     });
 
     /* 后端切换 → 预设匹配状态刷新 + 参数模板提示 */
@@ -174,7 +194,19 @@ async function load(root) {
           try { await api.saveSettings(draft); toast("设置已保存"); }
           catch (e) { toast(`保存失败：${e.message}`, true); }
         } }, "保存全部设置"),
-      el("button.ghost", { onclick: () => load(root) }, "放弃修改")));
+      el("button.ghost", { onclick: () => load(root) }, "放弃修改"),
+      el("button.danger", {
+        title: "清除全部自定义配置，恢复出厂默认（能力回 auto、参数清空、"
+               + "画幅/分集默认值还原）",
+        onclick: async () => {
+          if (!confirm("确定恢复默认设置？\n当前全部自定义配置（后端选择、参数、"
+            + "画幅、分集默认值）都将被清除。")) return;
+          try {
+            await api.resetSettings();
+            toast("已恢复默认设置");
+            load(root);          // 重新拉取后端默认值并重渲染
+          } catch (e) { toast(`恢复默认失败：${e.message}`, true); }
+        } }, "恢复默认设置")));
 }
 
 export function render(root) { load(root); }

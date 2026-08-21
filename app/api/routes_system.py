@@ -11,7 +11,8 @@ from app.adapters import registry
 from app.config import CAPABILITIES
 from app.events import get_bus
 from app.schemas import SettingsUpdate
-from app.services import ServiceError, system_health, update_settings
+from app.services import (ServiceError, reset_settings, system_health,
+                          update_settings)
 
 router = APIRouter(prefix="/api", tags=["system"])
 
@@ -65,6 +66,12 @@ def put_settings(req: SettingsUpdate):
         return update_settings(req.settings)
     except ServiceError as exc:
         raise HTTPException(400, str(exc)) from exc
+
+
+@router.post("/settings/reset")
+def post_settings_reset():
+    """恢复出厂默认设置（设置页「恢复默认」按钮）。"""
+    return reset_settings()
 
 
 @router.get("/events")

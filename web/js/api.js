@@ -50,6 +50,7 @@ export const api = {
   releaseVRAM: () => request("POST", "/api/system/vram/release"),
   settings: () => request("GET", "/api/settings"),
   saveSettings: (settings) => request("PUT", "/api/settings", { settings }),
+  resetSettings: () => request("POST", "/api/settings/reset"),
 };
 
 /** 绝对产物路径 → 受控媒体 URL（提取 projects/{pid}/ 之后的部分）。 */

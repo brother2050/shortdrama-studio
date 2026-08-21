@@ -64,6 +64,7 @@ class ChatTTSAdapter(AdapterBase):
             except ModelPathError as exc:
                 raise AdapterError(str(exc)) from exc
             model_dir = str(resolved or "")
+            self._check_assets(model_dir)   # 精确报缺哪些文件（中文指引）
         device = pick_device(str(params.get("device") or "auto"), VRAM_GB)
 
         def _do_load():
@@ -86,10 +87,32 @@ class ChatTTSAdapter(AdapterBase):
                     raise
             if ok is False:
                 raise AdapterError(
-                    f"ChatTTS 模型加载失败（model_dir={model_dir or '默认缓存'}）")
+                    f"ChatTTS 模型加载失败（model_dir={model_dir or '默认缓存'}）："
+                    "文件完整性校验未通过，请重新运行下载脚本修复。")
             return chat
 
         return self._slot.load(_do_load)
+
+    @staticmethod
+    def _check_assets(model_dir: str) -> None:
+        """预检 ChatTTS 0.2 所需文件，缺文件时报精确清单（而非笼统"找不到"）。
+
+        Chat().load(source="custom") 内部会做 sha256 完整性校验，任何
+        文件缺失/版本不符（如 v0.1 的 .pt 旧布局）都只返回 False；
+        这里先按文件名清单检查，给出可操作的中文指引。
+        """
+        required = ("Vocos.safetensors", "DVAE.safetensors", "Embed.safetensors",
+                    "Decoder.safetensors", "gpt/config.json",
+                    "gpt/model.safetensors", "tokenizer/tokenizer.json")
+        missing = [f for f in required if not (Path(model_dir) / "asset" / f).is_file()]
+        if not missing:
+            return
+        lines = "\n".join(f"  - asset/{f}" for f in missing)
+        raise AdapterError(
+            f"ChatTTS 模型不完整（目录 {model_dir}），缺少 {len(missing)} 个文件：\n"
+            f"{lines}\n"
+            "原因：ChatTTS≥0.2 需要 safetensors 版布局（v0.1 的 .pt 旧文件不兼容）。\n"
+            "修复：python scripts/download_models.py --capability tts --preset chattts")
 
     def run(self, ctx: dict[str, Any], progress: ProgressFn | None = None) -> dict[str, Any]:
         text = str(ctx.get("text", "")).strip()

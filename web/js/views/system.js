@@ -7,8 +7,28 @@ const CAP_NAMES = { llm: "剧本 LLM", tts: "语音合成", image: "关键帧图
                     video: "镜头视频", asr: "语音识别" };
 
 async function load(root) {
-  const health = await api.health().catch(() => null);
-  if (!health) { root.append(el("div.card", {}, "健康检查失败")); return; }
+  let health;
+  try {
+    health = await api.health();
+  } catch (e) {
+    root.innerHTML = "";
+    root.append(el("div.card", {},
+      el("h3", {}, "健康检查失败"),
+      el("div.muted", {}, String(e.message || e))));
+    return;
+  }
+  try {
+    renderHealth(root, health);
+  } catch (e) {
+    // 渲染异常兜底：保留已渲染部分，追加错误卡片（不再整页空白）
+    console.error("[system] 渲染失败:", e);
+    root.append(el("div.card", {},
+      el("h3", { style: "color:var(--err)" }, "系统状态渲染出错"),
+      el("div.muted.small.mono", {}, String(e && e.stack || e))));
+  }
+}
+
+function renderHealth(root, health) {
   root.innerHTML = "";
 
   root.append(el("h2", {}, "系统状态"));
@@ -23,6 +43,13 @@ async function load(root) {
           el("td", {}, info.active),
           el("td", {}, (info.backends || []).map((b) => b.name).join(", ")))))));
 
+  /* 环境信息表：嵌套对象转可读文本（tasks/counts 不再显示 [object Object]） */
+  const fmtVal = (v) => {
+    if (v == null) return "—";
+    if (typeof v === "object") return Object.entries(v)
+      .map(([k, x]) => `${k}:${x}`).join("  ");
+    return String(v);
+  };
   const rows = [];
   for (const [k, v] of Object.entries(health)) {
     if (k === "capabilities") continue;
@@ -39,7 +66,7 @@ async function load(root) {
       }
       continue;
     }
-    rows.push(el("tr", {}, el("td", {}, k), el("td.mono", {}, String(v))));
+    rows.push(el("tr", {}, el("td", {}, k), el("td.mono", {}, fmtVal(v))));
   }
   root.append(el("div.card", {},
     el("h3", {}, "环境"), el("table", {}, ...rows)));
@@ -94,7 +121,10 @@ async function load(root) {
     root.append(vramCard);
   }
 
-  const logEl = el("div#eventLog", {},
+  // 事件日志容器（el() 仅支持 .class 语法，id 必须走 attrs —— 旧的
+  // "div#eventLog" 写法会让 createElement 抛 InvalidCharacterError，
+  // 直接中断系统页渲染，这正是"系统页空白"的根因）
+  const logEl = el("div", { id: "eventLog" },
     el("div.muted", {}, "等待事件…（SSE 实时推送）"));
   root.append(el("div.card", {},
     el("h3", {}, "实时事件"), logEl));

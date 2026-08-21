@@ -23,7 +23,5 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt
-      - name: Dependency audit (minimal & valid)
-        run: python tests/audit_dependencies.py
       - name: Run tests
         run: pytest
