@@ -88,7 +88,7 @@ export function render(root) {
         el("div.muted.small", { style: "margin-top:8px" },
           "💡 首次使用推荐先用 mock 后端快速体验全流程，再到「设置」页配置真实模型。"),
         el("div.muted.small", {},
-          "💡 想要更高质量？在「设置」页把后端从 mock 切换到 diffusers/transformers_qwen/cosyvoice。"))));
+          "💡 想要更高质量？在「设置」页把后端从 mock 切换到 diffsynth/modelscope/cosyvoice。"))));
   }
 
   root.append(el("div.chat-wrap", {},

@@ -21,7 +21,7 @@ def test_core_app_imports_without_heavy_deps():
     for mod in ("app.main", "app.pipeline", "app.chat", "app.composer",
                 "app.services", "app.store", "app.tasks"):
         importlib.import_module(mod)
-    heavy = ("torch", "transformers", "diffusers", "modelscope", "funasr",
+    heavy = ("torch", "transformers", "diffsynth", "modelscope", "funasr",
              "numpy", "PIL", "requests")
     newly = [m for m in heavy if m in sys.modules and m not in before]
     assert not newly, f"核心链路意外引入 {newly}（核心依赖应保持最小）"

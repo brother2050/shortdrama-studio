@@ -52,12 +52,12 @@ http://127.0.0.1:8320
 
 | # | 阶段 | 产物 | 能力（可选后端，默认 auto） |
 |---|---|---|---|
-| 1 | worldview 世界观 | `worldview.md` + 角色资产 | LLM：mock / transformers_qwen / ollama |
+| 1 | worldview 世界观 | `worldview.md` + 角色资产 | LLM：mock / transformers_qwen / modelscope |
 | 2 | script 剧本 | `script.md` `script.json` | LLM 同上 |
 | 3 | storyboard 分镜 | `storyboard.json` | LLM 同上 |
 | 4 | voiceover 配音 | `shots/*/vo.wav` | TTS：mock / cosyvoice / chattts / gpt_sovits / fish_speech |
-| 5 | keyframes 关键帧 | `shots/*/keyframe.png` | 图像：mock / diffusers(SD/SDXL/FLUX/Qwen-Image) |
-| 6 | clips 镜头片段 | `shots/*/clip.mp4` | 视频：kenburns(ffmpeg，默认) / wan_i2v(Wan2.1/2.2) |
+| 5 | keyframes 关键帧 | `shots/*/keyframe.png` | 图像：mock / diffsynth(SD/SDXL/FLUX) |
+| 6 | clips 镜头片段 | `shots/*/clip.mp4` | 视频：kenburns(ffmpeg，默认) / diffsynth_wan(Wan2.1) |
 | 7 | subtitles 字幕 | `episode.srt` | ASR：script(默认) / funasr(SenseVoice/Paraformer) |
 | 8 | compose 合成 | `episode.mp4` | ffmpeg |
 

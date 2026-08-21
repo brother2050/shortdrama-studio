@@ -44,10 +44,10 @@
 │  app/continuity.py 连续性（世界观/角色/场景资产 + 跨集滚动摘要）       │
 ├────────────────────────────────────────────────────────────────────┤
 │  app/adapters/ 能力适配器（注册表模式 + ModelSlot 显存生命周期）        │
-│   llm:  mock │ transformers_qwen(ModelScope) │ ollama              │
+│   llm:  mock │ transformers_qwen(ModelScope) │ modelscope          │
 │   tts:  mock │ cosyvoice │ chattts │ gpt_sovits │ fish_speech     │
-│   image:mock │ diffusers(SD/FLUX/Qwen-Image)                        │
-│   video:kenburns(ffmpeg，默认) │ wan_i2v(diffusers)                │
+│   image:mock │ diffsynth(SD/FLUX)                                  │
+│   video:kenburns(ffmpeg，默认) │ diffsynth_wan(diffsynth)          │
 │   asr:  script(默认) │ funasr(SenseVoice/Paraformer)                │
 ├────────────────────────────────────────────────────────────────────┤
 │  app/store.py SQLite(sqlite3 标准库) │ app/composer.py ffmpeg 合成   │
@@ -143,7 +143,7 @@ data/
 |---|---|---|---:|---|---|
 | `mock`（默认兜底） | 无 | - | 0 | - | 模板化中文短剧生成，保证任何环境可演示/测试 |
 | `transformers_qwen` | torch+transformers | `Qwen/Qwen2.5-0.5B-Instruct`（CPU）· `Qwen2.5-1.5B/7B-Instruct`（GPU）· `Qwen3-0.6B/1.7B/4B` | 1–14GB | Apache-2.0 | 本地目录离线加载 `from_pretrained(local_path)` |
-| `ollama` | 本机 Ollama 服务 | qwen2.5:0.5b/1.5b/7b 等 | 0（外部进程） | Apache-2.0 | OpenAI 兼容接口 `http://127.0.0.1:11434` |
+| `modelscope` | modelscope | `qwen/Qwen2.5-{0.5B,1.5B,7B}-Instruct` | 2~16GB | Apache-2.0 | ModelScope 原生 LLM 推理 |
 
 参数（含默认值）：`model_path`(默认 auto 首个存在的本地模型)、`device`(auto/cpu/cuda)、
 `max_new_tokens`(1024)、`temperature`(0.8)。`mock` 无参数。
@@ -166,7 +166,7 @@ data/
 | 后端 | 依赖 | 模型（ModelScope id） | 显存 | 许可 | 备注 |
 |---|---|---|---:|---|---|
 | `mock`（默认兜底） | 无（纯 stdlib PNG 编码器） | - | 0 | - | 按分镜提示词哈希生成电影感占位卡（场景色 + 标题 + 镜头号），可离线全链路演示 |
-| `diffusers` | torch+diffusers | `AI-ModelScope/stable-diffusion-v1-5`（4–6GB）· `stabilityai/stable-diffusion-xl-base-1.0`（6–10GB）· `AI-ModelScope/FLUX.1-schnell`（8–12GB）· `Qwen/Qwen-Image-2512` | 4–24GB | Apache-2.0(FLUX-schnell) 等 | 本地目录 `StableDiffusionPipeline.from_pretrained(path)` |
+| `diffsynth` | torch+diffsynth | `AI-ModelScope/stable-diffusion-v1-5`（4–6GB）· `stabilityai/stable-diffusion-xl-base-1.0`（6–10GB）· `AI-ModelScope/FLUX.1-schnell`（8–12GB） | 4–12GB | 各模型许可 | DiffSynth-Studio 关键帧文生图，本地目录加载 |
 
 参数：`model_path`、`width`(1280)、`height`(720)、`steps`(28)、`guidance`(7.0)、`negative_prompt`(默认通用负面词)。
 
@@ -174,7 +174,7 @@ data/
 | 后端 | 依赖 | 模型 | 显存 | 许可 | 备注 |
 |---|---|---|---:|---|---|
 | `kenburns`（默认） | ffmpeg 二进制 | - | 0 | - | 关键帧 + zoompan 运镜（推/拉/摇）+ 时长对齐配音，**永远可用**，无 GPU 也出片 |
-| `wan_i2v` | torch+diffusers | `Wan-AI/Wan2.1-T2V-1.3B`(≈8GB) · `Wan2.2-TI2V-5B`(单卡4090) | 8GB+ | Apache-2.0 | `WanImageToVideoPipeline.from_pretrained(local)`，图生视频保持首帧一致 |
+| `diffsynth_wan` | torch+diffsynth | `Wan-AI/Wan2.1-T2V-1.3B`(≈8GB) | 8GB+ | Apache-2.0 | DiffSynth-Studio 图生视频，保持首帧一致 |
 
 参数：`motion`(auto/in/out/pan)、`fps`(24)、`duration_cap`(10s，单镜头上限)、`model_path`、`num_frames`(81)。
 
@@ -187,7 +187,7 @@ data/
 ### 5.6 后端可用性探测
 `AdapterSpec.requires`（Python 包名列表）+ `is_available()`：
 - import 探测（`importlib.util.find_spec`）
-- 外部二进制/服务探测（ffmpeg `shutil.which`；ollama 端口 `socket` 试连）
+- 外部二进制探测（ffmpeg `shutil.which`）
 - `/api/system/health` 汇总展示；`auto` 模式按 `priority` 排序取首个可用者。
 
 ---
@@ -269,7 +269,7 @@ shortdrama-studio/
 ├── README.md  DESIGN.md  LICENSE  pyproject.toml
 ├── requirements.txt（核心：fastapi、uvicorn —— 仅 2 个）
 ├── requirements-dev.txt（pytest、httpx）
-├── requirements-models.txt（可选模型栈：torch/transformers/diffusers/modelscope/funasr，分组注释）
+├── requirements-models.txt（可选模型栈：torch/transformers/diffsynth/modelscope/funasr，分组注释）
 ├── .github/workflows/ci.yml
 ├── app/（config/schemas/store/events/tasks/chat/continuity/pipeline/composer + adapters/ + api/）
 ├── web/（index.html + css/ + js/views/*）
@@ -283,7 +283,7 @@ shortdrama-studio/
 
 - **核心运行**：`fastapi`、`uvicorn`（其余全为标准库：sqlite3/json/wave/struct/zlib/threading/asyncio/uuid/hashlib/socket/shutil/subprocess/argparse）。mock 图像编码器为纯 stdlib PNG 写入（zlib+struct），TTS 为纯 stdlib wave 合成。
 - **开发测试**：`pytest`、`httpx`（FastAPI TestClient 所需）。
-- **可选模型栈**（`requirements-models.txt`，按能力分组、全部带用途注释，缺省不安装）：torch、transformers、diffusers、accelerate、modelscope、funasr、ChatTTS；CosyVoice / GPT-SoVITS / Fish Speech 以本地路径安装说明。
+- **可选模型栈**（`requirements-models.txt`，按能力分组、全部带用途注释，缺省不安装）：torch、transformers、diffsynth、accelerate、modelscope、funasr、ChatTTS；CosyVoice / GPT-SoVITS / Fish Speech 以本地路径安装说明。
 - 有专门测试保证：核心依赖均可导入、均被使用；未列依赖不被隐式引用（惰性导入仅在可选后端内）。
 
 ## 12. 扩展指南（三步新增一个后端）

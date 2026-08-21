@@ -34,10 +34,10 @@ from pathlib import Path
 # 各能力模型目录：档位名 → (ModelScope repo_id, 磁盘占用约值 GB, 说明)
 MODEL_CATALOG: dict[str, dict[str, tuple[str, float, str]]] = {
     "llm": {
-        "qwen2.5-0.5b": ("Qwen/Qwen2.5-0.5B-Instruct", 1.0,
+        "qwen2.5-0.5b": ("qwen/Qwen2.5-0.5B-Instruct", 1.0,
                           "剧本/分镜生成入门档，CPU 可跑"),
-        "qwen2.5-1.5b": ("Qwen/Qwen2.5-1.5B-Instruct", 3.0, "推荐：质量/资源均衡"),
-        "qwen2.5-7b": ("Qwen/Qwen2.5-7B-Instruct", 15.0, "高质量档（需 GPU）"),
+        "qwen2.5-1.5b": ("qwen/Qwen2.5-1.5B-Instruct", 3.0, "推荐：质量/资源均衡"),
+        "qwen2.5-7b": ("qwen/Qwen2.5-7B-Instruct", 15.0, "高质量档（需 GPU）"),
     },
     "tts": {
         "cosyvoice2-0.5b": ("iic/CosyVoice2-0.5B", 5.0,
@@ -101,13 +101,14 @@ def download(cap: str, preset: str, local_dir: Path) -> Path | None:
     return Path(path)
 
 
-def print_usage_hint(results: dict[str, Path | None]) -> None:
+def print_usage_hint(results: dict[str, tuple[str, Path | None]]) -> None:
     print("\n==== 下载完成，请在「设置」页写入以下参数 ====")
-    for cap, path in results.items():
+    for cap, (preset, path) in results.items():
         if path is None:
             continue
         if cap == "llm":
-            backend, params = "transformers_qwen", {"model_path": str(path)}
+            repo_id, _, _ = MODEL_CATALOG[cap][preset]
+            backend, params = "modelscope", {"model_id": repo_id}
         elif cap == "tts":
             if "chatTTS" in str(path) or "chattts" in str(path):
                 backend, params = "chattts", {"model_dir": str(path)}
@@ -119,9 +120,10 @@ def print_usage_hint(results: dict[str, Path | None]) -> None:
             else:
                 backend, params = "cosyvoice", {"model_dir": str(path)}
         elif cap == "image":
-            backend, params = "diffusers", {"model_path": str(path)}
+            backend, params = "diffsynth", {"model_preset": preset}
         elif cap == "video":
-            backend, params = "wan_i2v", {"model_path": str(path)}
+            repo_id, _, _ = MODEL_CATALOG[cap][preset]
+            backend, params = "diffsynth_wan", {"model_id": repo_id}
         else:
             backend, params = "funasr", {"model": str(path)}
         print(f"  [{cap}] backend={backend}  params={params}")
@@ -145,15 +147,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     caps = list(MODEL_CATALOG) if args.capability == "all" else [args.capability]
-    results: dict[str, Path | None] = {}
+    results: dict[str, tuple[str, Path | None]] = {}
     for cap in caps:
         preset = args.preset or DEFAULT_PRESET[cap]
         if preset not in MODEL_CATALOG[cap]:
             print(f"未知档位 {preset!r}（{cap}）。可选：{list(MODEL_CATALOG[cap])}")
             return 2
-        results[cap] = download(cap, preset, args.local_dir)
+        results[cap] = (preset, download(cap, preset, args.local_dir))
     print_usage_hint(results)
-    ok = all(p is not None for p in results.values())
+    ok = all(p is not None for _, p in results.values())
     return 0 if ok else 1
 
 

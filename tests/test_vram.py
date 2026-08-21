@@ -51,7 +51,7 @@ def test_release_capability_only_targets_that_capability():
     """释放 tts 能力时，其他能力的已加载模型不受影响。"""
     tts_a = ModelSlot("chattts", capability="tts")
     tts_b = ModelSlot("cosyvoice2", capability="tts")
-    img = ModelSlot("image_diffusers", capability="image")
+    img = ModelSlot("image_diffsynth", capability="image")
     try:
         tts_a.load(lambda: "tts_model_a")
         tts_b.load(lambda: "tts_model_b")

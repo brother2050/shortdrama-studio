@@ -15,7 +15,7 @@ dependencies = ["fastapi>=0.110", "uvicorn>=0.29"]
 dev = ["pytest>=8.0", "httpx>=0.27"]
 models = [
   "torch>=2.2", "transformers>=4.44", "accelerate>=0.30",
-  "diffusers>=0.30", "modelscope>=1.18", "funasr>=1.1",
+  "diffsynth>=2.1", "modelscope>=1.18", "funasr>=1.1",
 ]
 
 [tool.setuptools.packages.find]

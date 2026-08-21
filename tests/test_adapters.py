@@ -127,11 +127,11 @@ def test_heavy_dependencies_not_imported():
     """依赖最小性：导入全部适配器后，重依赖不得进入 sys.modules。"""
     import importlib
 
-    for mod in ("app.adapters.llm_mock", "app.adapters.llm_ollama",
+    for mod in ("app.adapters.llm_mock", "app.adapters.llm_modelscope",
                 "app.adapters.tts_mock", "app.adapters.tts_cosyvoice",
-                "app.adapters.image_mock", "app.adapters.image_diffusers",
-                "app.adapters.video_kenburns", "app.adapters.video_wan",
+                "app.adapters.image_mock", "app.adapters.image_diffsynth",
+                "app.adapters.video_kenburns", "app.adapters.video_diffsynth",
                 "app.adapters.asr_script", "app.adapters.asr_funasr"):
         importlib.import_module(mod)
-    for heavy in ("torch", "transformers", "diffusers", "modelscope", "funasr"):
+    for heavy in ("torch", "transformers", "diffsynth", "modelscope", "funasr"):
         assert heavy not in sys.modules, f"{heavy} 被提前导入（违反惰性导入约定）"

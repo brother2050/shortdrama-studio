@@ -46,10 +46,11 @@ _GENRES = {"都市": "都市情感", "爱情": "爱情", "悬疑": "悬疑", "�
 _BACKEND_HINTS = [
     ("cosyvoice", "tts", "cosyvoice"), ("chattts", "tts", "chattts"),
     ("sovits", "tts", "gpt_sovits"), ("fish", "tts", "fish_speech"),
-    ("qwen", "llm", "transformers_qwen"), ("ollama", "llm", "ollama"),
-    ("wan", "video", "wan_i2v"), ("kenburns", "video", "kenburns"),
-    ("flux", "image", "diffusers"), ("sdxl", "image", "diffusers"),
-    ("diffusers", "image", "diffusers"), ("funasr", "asr", "funasr"),
+    ("modelscope", "llm", "modelscope"), ("qwen", "llm", "modelscope"),
+    ("transformers", "llm", "transformers_qwen"),
+    ("wan", "video", "diffsynth_wan"), ("kenburns", "video", "kenburns"),
+    ("diffsynth", "image", "diffsynth"), ("flux", "image", "diffsynth"),
+    ("sdxl", "image", "diffsynth"), ("funasr", "asr", "funasr"),
 ]
 
 INTENTS = ("create_project", "generate_episode", "regenerate_stage",

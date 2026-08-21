@@ -9,7 +9,7 @@
 6. ``release_all()``：释放全部模型（阶段间 / 手动一键释放）。
 
 设计原则：
-- 所有 torch/diffusers 调用都应有 OOM 恢复：先 CUDA，失败回退 CPU。
+- 所有 torch/diffsynth 调用都应有 OOM 恢复：先 CUDA，失败回退 CPU。
 - 切换后端/引擎时必须先释放旧模型（settings 更新钩子调用 release_capability）。
 - 无 CUDA 环境全部静默降级到 CPU，不阻塞流程。
 """

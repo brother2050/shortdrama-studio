@@ -18,7 +18,7 @@ logger = logging.getLogger("app.adapters")
 
 # -- 内置后端（导入即注册） ---------------------------------------------
 from app.adapters import llm_mock          # noqa: E402,F401
-from app.adapters import llm_ollama        # noqa: E402,F401
+from app.adapters import llm_modelscope    # noqa: E402,F401
 from app.adapters import llm_transformers  # noqa: E402,F401
 from app.adapters import tts_mock          # noqa: E402,F401
 from app.adapters import tts_cosyvoice     # noqa: E402,F401
@@ -26,9 +26,9 @@ from app.adapters import tts_chattts       # noqa: E402,F401
 from app.adapters import tts_gptsovits     # noqa: E402,F401
 from app.adapters import tts_fishspeech    # noqa: E402,F401
 from app.adapters import image_mock        # noqa: E402,F401
-from app.adapters import image_diffusers   # noqa: E402,F401
+from app.adapters import image_diffsynth   # noqa: E402,F401
 from app.adapters import video_kenburns    # noqa: E402,F401
-from app.adapters import video_wan         # noqa: E402,F401
+from app.adapters import video_diffsynth  # noqa: E402,F401
 from app.adapters import asr_script        # noqa: E402,F401
 from app.adapters import asr_funasr        # noqa: E402,F401
 

@@ -8,17 +8,17 @@
 | 能力 | 后端 | 模型 / 来源 | 显存 | 许可 | 说明 |
 |---|---|---|---|---|---|
 | llm | `mock` | 内置模板 | 0 | MIT | 零依赖兜底，确定性输出 |
-| llm | `ollama` | qwen2.5:0.5b~7b | 由 Ollama 管 | 模型许可 | 本机 Ollama 服务（OpenAI 兼容） |
-| llm | `transformers_qwen` | Qwen/Qwen2.5-{0.5B,1.5B,7B}-Instruct | 2~16GB | Apache-2.0 | 完全离线推理，0.5B 可 CPU |
+| llm | `transformers_qwen` | Qwen/Qwen2.5-{0.5B,1.5B,7B}-Instruct | 2~16GB | Apache-2.0 | ModelScope 离线推理（transformers），0.5B 可 CPU |
+| llm | `modelscope` | qwen/Qwen2.5-{0.5B,1.5B,7B}-Instruct | 2~16GB | Apache-2.0 | ModelScope 原生 LLM 推理 |
 | tts | `mock` | 内置正弦波 | 0 | MIT | 零依赖兜底 |
 | tts | `cosyvoice` | iic/CosyVoice2-0.5B | 2GB | Apache-2.0 | 多音色中文配音（推荐） |
 | tts | `chattts` | pzc163/chatTTS | 1.5GB | CC-BY-NC-4.0 | 对话感配音，角色固定种子 |
 | tts | `gpt_sovits` | AIDub/GPT-SoVITS | 3GB | MIT | 声音克隆（参考音频） |
 | tts | `fish_speech` | fishaudio/fish-speech-1.5 | 4GB | CC-BY-NC-SA | 多语言配音/克隆 |
 | image | `mock` | 内置 PNG 生成 | 0 | MIT | 零依赖兜底（色块构图） |
-| image | `diffusers` | SD1.5 / SDXL / FLUX.1-schnell / Qwen-Image | 4~12GB | 各模型许可 | 关键帧文生图 |
+| image | `diffsynth` | SD/SDXL/FLUX | 4~12GB | 各模型许可 | DiffSynth-Studio 关键帧文生图 |
 | video | `kenburns` | ffmpeg | 0 | - | 关键帧 Ken Burns 运镜（默认，零依赖） |
-| video | `wan_i2v` | Wan-AI/Wan2.1-T2V-1.3B / Wan2.2-TI2V-5B | 8GB+ | Apache-2.0 | 图生视频，镜头动态 |
+| video | `diffsynth_wan` | Wan-AI/Wan2.1-T2V-1.3B | 8GB+ | Apache-2.0 | DiffSynth-Studio 图生视频 |
 | asr | `script` | 剧本内置 | 0 | - | 直接用剧本台词做字幕对齐（默认） |
 | asr | `funasr` | iic/SenseVoiceSmall | 1GB | FunASR 许可 | 语音识别，字幕时长校对 |
 

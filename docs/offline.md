@@ -7,10 +7,10 @@ ShortDrama Studio 设计目标：**断网环境从安装到出片全流程可用
 | 环节 | 离线方案 | 说明 |
 |---|---|---|
 | 安装 | `pip install fastapi uvicorn`（仅 2 个核心依赖） | 无重依赖即可运行全链路（mock 后端） |
-| 剧本 LLM | Qwen 本地推理 / Ollama 本机服务 / 内置模板 | 三级可选 |
+| 剧本 LLM | ModelScope LLM 推理 / Qwen 本地推理 / 内置模板 | 三级可选 |
 | 配音 | CosyVoice2 / ChatTTS / GPT-SoVITS / Fish Speech 本地推理 / 内置合成音 | 全部本地库调用（无 HTTP 服务），多音色与按角色克隆 |
-| 关键帧 | SD/SDXL/FLUX 本地 diffusers / 内置构图生成 | 风格提示词统一 |
-| 镜头 | ffmpeg Ken Burns（零模型）/ Wan2.1 图生视频 | 关键帧一致性 |
+| 关键帧 | DiffSynth-Studio 本地推理 / 内置构图生成 | 风格提示词统一 |
+| 镜头 | ffmpeg Ken Burns（零模型）/ DiffSynth-Studio Wan 图生视频 | 关键帧一致性 |
 | 字幕 | 剧本台词对齐（默认）/ SenseVoice ASR | 无需字体文件（mov_text 软字幕） |
 | 成片 | 本地 ffmpeg | 拼接 + 音轨 + 软字幕 |
 | 前端 | 随服务分发的静态文件（零构建、无 CDN） | 无外网请求 |

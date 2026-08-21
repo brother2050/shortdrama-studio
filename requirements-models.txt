@@ -2,16 +2,17 @@
 # 安装示例：pip install -r requirements-models.txt
 # 模型下载：python scripts/download_models.py --capability all --local-dir ./models
 
-# ---- LLM（剧本/世界观/分镜）transformers_qwen 后端 ----
+# ---- LLM（剧本/世界观/分镜）modelscope 后端 ----
 # 模型：Qwen/Qwen2.5-0.5B-Instruct(CPU) / Qwen2.5-1.5B / Qwen2.5-7B / Qwen3-0.6B / Qwen3-1.7B
 torch>=2.2
 transformers>=4.44
 accelerate>=0.30
 
-# ---- 文生图（关键帧）diffusers 后端 ----
+# ---- 文生图（关键帧）diffsynth 后端 ----
 # 模型：AI-ModelScope/stable-diffusion-v1-5 / stabilityai/stable-diffusion-xl-base-1.0
-#       AI-ModelScope/FLUX.1-schnell / Qwen/Qwen-Image-2512
-diffusers>=0.30
+# AI-ModelScope/FLUX.1-schnell / Qwen-Image
+# DiffSynth-Studio 更新频繁，建议 git clone + pip install -e . 以获取最新特性
+diffsynth>=2.1
 
 # ---- ModelScope 离线下载（scripts/download_models.py 需要）----
 modelscope>=1.18

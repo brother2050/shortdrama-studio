@@ -9,10 +9,10 @@
 **asr**  ctx: ``{audio_path, segments: [{start, end, text, speaker}]}`` → ``{"segments": [...]}``
 
 约定：
-- 重依赖（torch/transformers/diffusers 等）必须在 ``run()`` 内部惰性导入，
+- 重依赖（torch/transformers/diffsynth 等）必须在 ``run()`` 内部惰性导入，
   保证未安装时模块仍可导入、可注册、可被探测为"不可用"。
 - ``is_available()`` 由注册表调用：探测 requires 中的 Python 包 + 子类钩子
-  ``_extra_available()``（如 ffmpeg 二进制、ollama 端口）。
+  ``_extra_available()``（如 ffmpeg 二进制、modelscope 服务）。
 - 每个适配器通过 ``AdapterSpec.default_params`` 声明默认参数（不选也有默认值），
   ``param_docs`` 提供人可读说明（设置页自动渲染表单）。
 """
